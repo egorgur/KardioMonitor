@@ -1,0 +1,12 @@
+.gradle/
+build/
+app/build/
+local.properties
+*.apk
+.kotlin/
+*.aab
+captures/
+.claude/settings.local.json
+# Выгрузки с телефона пациента (testing.md): база, настройки, скриншоты
+*.db
+screen.png

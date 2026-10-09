@@ -1,0 +1,31 @@
+# Общий репозиторий KardioMonitor: Python-прототип в корне, Android-приложение в android/.
+# У каждого проекта свои правила игнорирования (android/.gitignore).
+
+# Секреты: ключ авторизации браслета и QR-коды с ним не коммитятся никогда
+.env
+*.env
+secrets/
+/*.svg
+/*.png
+
+# Данные с браслета (пульс, шаги) — персональные данные о здоровье
+/*.csv
+/services.txt
+
+# Сторонний инструмент со своим git-репозиторием
+huami-token/
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# IDE и ОС
+.idea/
+.vscode/
+.DS_Store
+
+# Локальные настройки Claude Code
+.claude/settings.local.json
+**/.claude/settings.local.json
