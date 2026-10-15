@@ -52,17 +52,15 @@ android/
   .claude/           # настройки агента: hooks, skills проекта, подагент-ревьюер
   docs/              # архитектура, домен, правила кода, тесты, протокол, ADR
   app/src/main/java/ru/kardiomonitor/
-    ble/             # GATT-клиент, протокол Huami 2021, команды Mi Band 6
-    data/            # учётные данные браслета, настройки, SQLite-история
-    ui/              # экраны, графики, тема
-    BandManager.kt   # общий сеанс связи с браслетом (экран + фон)
-    SyncWorker.kt    # фоновая синхронизация (WorkManager)
-  app/src/test/      # тесты протокола, разбора данных и архитектурные (architecture/)
+    app/             # композиционный корень: Application, MainActivity, AppContainer, главный экран
+    features/band/   # контекст «Браслет»: привязка, подключение (общий сеанс связи), частота пульса
+    features/monitoring/  # контекст «Мониторинг»: синхронизация истории (кнопка + фон),
+                     # пульс сейчас, шаги сегодня, итоги дня
+    platform/        # GATT-клиент, протокол Mi Band 6 (ACL HuamiBand), SQLite, тема и графики
+  app/src/test/      # тесты домена, сценариев (на фейках), протокола и архитектурные (architecture/)
 ```
 
-Целевая структура — по контекстам и вертикальным слайсам (`features/band/…`,
-`features/monitoring/…`), см. [docs/architecture.md](docs/architecture.md). Текущий
-код переносится в неё поэтапно.
+Код организован по контекстам и вертикальным слайсам, см. [docs/architecture.md](docs/architecture.md).
 
 ## Документация
 

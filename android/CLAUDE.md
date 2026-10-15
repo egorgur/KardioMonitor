@@ -31,9 +31,8 @@ Vertical Slice Architecture + DDD: код по контекстам (`features.b
 - Домен (`features.*.domain`) — чистый Kotlin: без `android.*`, Compose и `platform.*`.
 - Имена — из глоссария [docs/domain-model.md](docs/domain-model.md). Нет термина —
   добавить в глоссарий. Без суффиксов `Manager`/`Helper`/`Util`.
-- Текущий код ещё разложен по слоям (`ble/`, `data/`, `ui/`, `BandManager`). Новый код —
-  сразу по целевой структуре; перенос старого — только отдельной задачей по плану
-  миграции из architecture.md, не «заодно».
+- Миграция прототипа со слоёв на эту структуру завершена (architecture.md). Слоёв
+  `ble/`, `data/`, `ui/` больше нет — не создавать их заново.
 
 ## Правила кода
 
@@ -62,14 +61,16 @@ Vertical Slice Architecture + DDD: код по контекстам (`features.b
 - Прошивка 1.0.6.10 требует авторизацию Huami 2021 (ECDH B-163); старая отклоняется.
 - Не отправлять браслету `03` после выгрузки истории — он удалит данные ([ADR-0002](docs/adr/0002-keep-history-on-band.md)).
 - Браслет держит одно соединение: все сценарии — через общий сеанс связи
-  ([ADR-0003](docs/adr/0003-single-band-connection.md)). Не создавать `GattClient` в слайсах.
+  ([ADR-0003](docs/adr/0003-single-band-connection.md)): `features.band.api.BandConnection`.
+  Не создавать `GattClient` в слайсах; браслет — через порты `BandLink` / `ActivitySource`.
 - Никогда не логировать и не коммитить ключ авторизации и содержимое QR.
 - Проверка на устройстве — по журналу `KardioBLE` (что искать — в testing.md).
   Телефон пациента: не делать `pm clear`, не удалять базу.
 
 ## Инструменты агента
 
-- Skills проекта: `/new-slice <контекст>/<слайс>`, `/protocol-change`, `/migration-step <N>`.
+- Skills проекта: `/new-slice <контекст>/<слайс>`, `/protocol-change` (`/migration-step` — для
+  истории: миграция завершена).
 - Подагент `architecture-reviewer` — ревью диффа перед отчётом.
 - Stop-hook запускает `testDebugUnitTest`, если менялся код; PreToolUse-hook блокирует
   опасные adb-команды и вывод ключа. Внешние skills (`jetpack-compose`, `security`,

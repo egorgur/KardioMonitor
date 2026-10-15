@@ -8,7 +8,6 @@ import ru.kardiomonitor.features.monitoring.domain.ActivityMinute
 import ru.kardiomonitor.platform.ble.GattClient
 import ru.kardiomonitor.platform.ble.toHex
 import ru.kardiomonitor.platform.ble.withResponseTimeout
-import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
@@ -143,52 +142,22 @@ internal class MiBand6(private val gatt: GattClient, private val scope: Coroutin
      */
     suspend fun fetchActivity(since: ZonedDateTime, onProgress: (minutesReceived: Int) -> Unit): List<ActivityMinute> {
         val control = Channel<ByteArray>(Channel.UNLIMITED)
-        val buffer = ByteArrayOutputStream()
-        var lastCounter = -1
-        var broken = false
-
+        val packets = HistoryPackets()
         gatt.enableNotifications(FETCH_CONTROL) { control.trySend(it) }
-        gatt.enableNotifications(FETCH_DATA) { data ->
-            synchronized(buffer) {
-                val counter = data[0].toInt() and 0xFF
-                if (counter != (lastCounter + 1) and 0xFF) {
-                    broken = true
-                } else {
-                    lastCounter = counter
-                    buffer.write(data, 1, data.size - 1)
-                }
-            }
-        }
-
-        suspend fun expect(command: Int): ByteArray = withResponseTimeout(FETCH_TIMEOUT_MS, "выгрузка истории") {
-            var r: ByteArray
-            do {
-                r = control.receive()
-            } while (r.size < 3 || r[0] != 0x10.toByte() || r[1] != command.toByte())
-            if (r[2] != 0x01.toByte()) throw IOException("браслет отклонил команду $command: ${r.toHex()}")
-            r
-        }
+        gatt.enableNotifications(FETCH_DATA, packets::add)
 
         val samples = mutableListOf<ActivityMinute>()
         var from = since
         repeat(MAX_ROUNDS) {
-            synchronized(buffer) {
-                buffer.reset()
-                lastCounter = -1
-                broken = false
-            }
+            packets.reset()
             gatt.write(FETCH_CONTROL, byteArrayOf(0x01, 0x01) + encodeTime(from))
-            val response = expect(0x01)
+            val response = expectFetchResponse(control, command = 0x01)
             if (le32(response, 3) == 0) return samples
             val start = decodeTime(response, 7)
 
             gatt.write(FETCH_CONTROL, byteArrayOf(0x02))
-            expect(0x02)
-            val raw = synchronized(buffer) {
-                if (broken) throw IOException("история пришла с пропусками пакетов")
-                buffer.toByteArray()
-            }
-            val chunk = ActivityRecords.parse(start, raw)
+            expectFetchResponse(control, command = 0x02)
+            val chunk = ActivityRecords.parse(start, packets.records())
             onProgress(samples.size + chunk.size)
             if (chunk.isEmpty()) return samples
             samples += chunk
@@ -197,6 +166,17 @@ internal class MiBand6(private val gatt: GattClient, private val scope: Coroutin
         }
         return samples
     }
+
+    /** Ответ `10 <команда> 01` в 0x0004; другой код результата — браслет отклонил команду. */
+    private suspend fun expectFetchResponse(control: Channel<ByteArray>, command: Int): ByteArray =
+        withResponseTimeout(FETCH_TIMEOUT_MS, "выгрузка истории") {
+            var r: ByteArray
+            do {
+                r = control.receive()
+            } while (r.size < 3 || r[0] != 0x10.toByte() || r[1] != command.toByte())
+            if (r[2] != 0x01.toByte()) throw IOException("браслет отклонил команду $command: ${r.toHex()}")
+            r
+        }
 
     companion object {
         private fun huami(short: Int) = UUID.fromString("%08x-0000-3512-2118-0009af100700".format(short))

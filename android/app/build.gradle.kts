@@ -20,6 +20,8 @@ android {
     }
 
     testOptions {
+        // android.util.Log в сценариях: в JVM-тестах — заглушки, а не «Method not mocked»
+        unitTests.isReturnDefaultValues = true
         unitTests.all {
             // Причина падения — в выводе Gradle, а не только в HTML-отчёте: её видят агент и Stop-hook
             it.testLogging {

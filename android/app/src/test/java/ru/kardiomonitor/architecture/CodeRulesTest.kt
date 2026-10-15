@@ -97,6 +97,6 @@ class CodeRulesTest {
         val FEATURE_FORBIDDEN_SUFFIXES = FORBIDDEN_SUFFIXES + listOf("Processor", "Data", "Info", "Item")
 
         /** Прототип до правил. Удаляется отсюда тем же шагом миграции, что и класс (architecture.md). */
-        val LEGACY_NAMES = setOf("BandManager")
+        val LEGACY_NAMES = emptySet<String>()
     }
 }

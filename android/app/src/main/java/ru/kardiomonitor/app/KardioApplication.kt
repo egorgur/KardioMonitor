@@ -14,6 +14,7 @@ class KardioApplication : Application(), Configuration.Provider {
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
+        container.backgroundSyncSchedule.start()
     }
 
     override val workManagerConfiguration: Configuration

@@ -37,33 +37,46 @@
 доменные типы (`ActivityMinute`, `HeartRate`, `BatteryLevel`) — это
 **антикоррупционный слой (ACL)**.
 
-## Целевая структура пакетов
+## Структура пакетов
 
 ```
 ru.kardiomonitor/
-  app/                        # Композиционный корень: Application, MainActivity, навигация,
-                              # AppContainer (ручной DI), сборка экранов из секций слайсов
+  app/                        # Композиционный корень: KardioApplication, MainActivity (навигация:
+                              # привязка / главный экран), AppContainer (ручной DI), DashboardScreen
+                              # (раскладка секций слайсов), KardioWorkerFactory, BackgroundSyncSchedule
   platform/                   # Сквозная техника без бизнес-понятий
-    ble/                      #   GattClient — очередь GATT-операций на корутинах
-    huami/                    #   Протокол Mi Band 6: Huami2021, команды, ACL-адаптер HuamiBand
-    db/                       #   SQLiteOpenHelper, миграции схемы
-    ui/                       #   Тема, дизайн-система, графики (без бизнес-логики)
+    ble/                      #   GattClient — очередь GATT-операций на корутинах, withResponseTimeout
+    huami/                    #   Протокол Mi Band 6: Auth2021, EcdhB163, Chunked*, MiBand6;
+                              #   ACL-адаптер HuamiBand (реализует BandLink и ActivitySource)
+    db/                       #   KardioDatabase: SQLiteOpenHelper, миграции схемы
+    ui/                       #   Тема, карточки (SectionCard, StatTile), графики (без бизнес-логики)
   features/
     band/                     # Контекст «Браслет»
-      domain/                 #   BandCredentials, BandAddress, AuthKey, HeartRateMeasurementInterval …
-      api/                    #   Опубликованный API контекста: BandConnection (порт сеанса связи)
-      data/                   #   Реализации репозиториев контекста (SharedPreferences)
-      pairing/                #   Слайс: привязка браслета (QR / вручную), смена браслета
-      connection/             #   Слайс: подключение/отключение, статус, заряд
+      domain/                 #   Band, BandCredentials, BandAddress, AuthKey, HeartRateMeasurementInterval,
+                              #   BatteryLevel, ConnectionStage, ConnectionProblem; порты BandRepository,
+                              #   BatteryLog, BandLink (канал связи — реализует ACL)
+      api/                    #   Опубликованный API контекста: BandConnection (порт сеанса связи),
+                              #   ConnectionState, SessionUnavailableException
+      data/                   #   SharedPreferencesBandRepository, SqliteBatteryLog
+      pairing/                #   Слайс: привязка браслета (PairingScreen) и смена (ChangeBandButton)
+      connection/             #   Слайс: подключение/отключение, статус, заряд (ConnectionSection);
+                              #   SingleBandConnection — реализация BandConnection для app
       measurementinterval/    #   Слайс: частота измерения пульса
     monitoring/               # Контекст «Мониторинг»
-      domain/                 #   HeartRate, StepCount, ActivityMinute, ActivityKind, DailySummary,
-                              #   ActivityHistory (интерфейс репозитория)
-      data/                   #   SqliteActivityHistory — реализация ActivityHistory
-      historysync/            #   Слайс: синхронизация истории (кнопка + фоновая задача)
+      domain/                 #   HeartRate, StepCount, Intensity, ActivityMinute, ActivityKind, DailySummary,
+                              #   HistorySyncStart, LastSync; порты ActivityHistory, SyncSettings,
+                              #   ActivitySource (данные браслета — реализует ACL)
+      data/                   #   SqliteActivityHistory, SharedPreferencesSyncSettings
+      historysync/            #   Слайс: синхронизация истории (кнопка + HistorySyncWorker)
       liveheartrate/          #   Слайс: пульс сейчас
+      stepstoday/             #   Слайс: шаги за сегодня с браслета (в карточке подключения)
       dailysummary/           #   Слайс: итоги дня, графики, навигация по дням
 ```
+
+Браслет виден контекстам через порты на их языке: `BandLink` (контекст «Браслет») и
+`ActivitySource` («Мониторинг»). Оба реализует один объект ACL — `platform.huami.HuamiBand`,
+единственный владелец GATT-соединения. Сценарии «Мониторинга» вызывают `ActivitySource`
+внутри `BandConnection.withSession { … }`: сеанс гарантирует одно соединение и очередь (ADR-0003).
 
 Тесты лежат в `src/test/java/ru/kardiomonitor/<тот же путь>` — рядом с кодом слайса
 по пакету.
@@ -114,7 +127,12 @@ app ──► features.*.<slice> ──► features.*.domain ◄── features.
 
 - **Слайсы не вызывают друг друга.** Если `dailysummary` должен обновиться после
   синхронизации — он подписывается на `ActivityHistory.changes` (Flow репозитория),
-  а не вызывает `historysync`.
+  а не вызывает `historysync`. Синхронизация после подключения кнопкой — подписка
+  `historysync` на `BandConnection.state`. Показатель одного слайса внутри секции другого
+  (шаги сегодня в карточке подключения) вставляет `app` через composable-слот.
+- **Слайс может иметь несколько точек входа для разных мест** — экранную секцию и Worker
+  (`historysync`), экран и кнопку (`pairing`), секцию и реализацию порта для `app`
+  (`connection` — `SingleBandConnection`). Остальное в слайсе — `internal`/`private`.
 - **Связь между контекстами — только через `api` и доменные типы.** Мониторинг
   получает сеанс связи через `features.band.api.BandConnection`, не зная о GATT.
 - **Зависимости передаются сверху вниз.** `AppContainer` создаёт инфраструктуру и
@@ -172,32 +190,24 @@ app ──► features.*.<slice> ──► features.*.domain ◄── features.
 - Пока не автоматизировано (проверяется ревью): функция ≤ 40 строк, «публична только
   точка входа слайса», бизнес-логика в composable.
 
-## Текущее состояние и миграция
+## Миграция прототипа (завершена)
 
-Прототип написан до этих правил. Код по-прежнему разложен по слоям
-(`ble/`, `data/`, `ui/`). **Новый код пишется сразу по целевой структуре.**
-Существующий переносится отдельными задачами, по одному шагу, со сборкой и тестами
-после каждого.
+Прототип был написан до этих правил и разложен по слоям (`ble/`, `data/`, `ui/`,
+`BandManager`, `MainViewModel`). Он перенесён в эту структуру за четыре шага, по коммиту на
+шаг; после каждого — `testDebugUnitTest lintDebug assembleDebug`.
 
-| Сейчас | Цель | Проблема |
-|---|---|---|
-| `ble/Huami2021.kt`, `ble/MiBand6.kt` | `platform/huami/` + ACL-адаптер `HuamiBand` | Протокольные типы (`ActivitySample.kind: Int`) доходят до UI |
-| `ble/GattClient.kt` | `platform/ble/GattClient.kt` | — (только перенос) |
-| `BandManager.kt` | `features/band/connection/` + `features/band/api/BandConnection` | Имя «Manager»; смешаны 5 сценариев; глобальный синглтон |
-| `MainViewModel.kt`, `UiState` | ViewModel на каждый слайс | Один ViewModel на все сценарии |
-| `ui/DashboardScreen.kt` | `app/` собирает секции слайсов | Экран знает все сценарии; статистика дня считается в composable |
-| `data/BandConfig.kt`, `data/BandSettings.kt` | `features/band/domain/` + `features/band/data/` | Примитивы `String` для MAC и ключа |
-| `data/SampleStore.kt` | `features/monitoring/data/SqliteActivityHistory` | Интерфейс в технических терминах (`query(from, to)`) |
-| `SyncWorker.kt` | `features/monitoring/historysync/HistorySyncWorker.kt` | — |
-| `ActivitySample` | `features/monitoring/domain/ActivityMinute` | `kind: Int` вместо `ActivityKind`, `heartRate: Int?` вместо `HeartRate?` |
-| `dataVersion` в `BandState` | `ActivityHistory.changes: Flow` | Технический счётчик вместо доменного события |
+| Было | Стало |
+|---|---|
+| `ble/Huami2021.kt`, `ble/MiBand6.kt` | `platform/huami/` (по типу на файл) + ACL `HuamiBand`; `ActivitySample` с `kind: Int` удалён |
+| `ble/GattClient.kt` | `platform/ble/GattClient.kt` |
+| `BandManager.kt` (синглтон `get()`) | `features/band/api/BandConnection` + `features/band/connection/SingleBandConnection`, создаётся в `AppContainer` |
+| `MainViewModel.kt`, `UiState` | ViewModel и `UiState` в каждом слайсе |
+| `ui/DashboardScreen.kt` | `app/DashboardScreen` раскладывает секции; итоги дня — `DailySummary` |
+| `data/BandConfig.kt`, `data/BandSettings.kt` | `features/band/domain/` (`BandCredentials`, `Band`) + `features/band/data/`; настройки синхронизации — `features/monitoring/data/` |
+| `data/SampleStore.kt` | `platform/db/KardioDatabase` + `features/monitoring/data/SqliteActivityHistory`, `features/band/data/SqliteBatteryLog` |
+| `SyncWorker.kt` | `features/monitoring/historysync/HistorySyncWorker.kt` (работа `history-sync`; старая `band-sync` снимается) |
+| `dataVersion` в `BandState` | `ActivityHistory.changes: Flow` |
 
-Порядок миграции (каждый шаг — отдельная задача, приложение работает после каждого;
-архитектурные тесты проверяют каждый перенесённый пакет; порядок шага — skill `/migration-step`):
-
-1. ✅ Ввести доменные типы `monitoring/domain` (`HeartRate`, `ActivityMinute`, `ActivityKind`,
-   `DailySummary`) с тестами; `DaySummary` в UI перевести на `DailySummary`.
-2. ✅ Перенести протокол в `platform/huami`, добавить ACL-адаптер, выдающий доменные типы.
-3. ✅ Ввести `AppContainer`, убрать `BandManager.get()`.
-4. Разрезать `BandManager` и `MainViewModel` на слайсы по таблице, по одному слайсу за шаг.
-   Когда `BandManager` исчезнет — убрать его из `LEGACY_NAMES` в `CodeRulesTest`.
+Совместимость с данными на телефоне пациента сохранена: база `samples.db` (схема v2),
+SharedPreferences `band` и `band_settings` с прежними ключами, компонент `.MainActivity`
+(`activity-alias`). `LEGACY_NAMES` в `CodeRulesTest` пуст — исключений из правил нет.

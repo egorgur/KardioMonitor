@@ -29,12 +29,14 @@ argument-hint: <контекст>/<слайс>, например monitoring/rest
      <Глагол><Объект>.kt   # сценарий — только если нужен без UI или из Worker
    ```
 
-4. **Зависимости — только разрешённые.** Браслет — через `features.band.api.BandConnection`
-   (не `GattClient`, не `BandManager` из нового кода). История — через `ActivityHistory`.
+4. **Зависимости — только разрешённые.** Сеанс связи — `features.band.api.BandConnection`,
+   данные браслета — порты домена (`ActivitySource`, `BandLink`), не `GattClient`.
+   История — через `ActivityHistory`.
    Реакция на другой слайс — подписка на Flow репозитория, не импорт слайса.
    Реализации из `features.*.data` создаёт композиционный корень.
-5. **Сборка.** ViewModel-фабрика и Worker получают зависимости из `AppContainer`
-   (до шага 3 миграции — из `MainActivity`). Никаких `getInstance()` и синглтонов.
+5. **Сборка.** Секция создаёт ViewModel через `viewModel { … }` из зависимостей, которые
+   передаёт `app` (`AppContainer`); Worker — через `app/KardioWorkerFactory`. Никаких
+   `getInstance()` и синглтонов. Секцию добавить в `app/DashboardScreen`.
 6. **Фейки портов** — `src/test/.../features/<контекст>/fakes/Fake<Порт>.kt`, рукописные,
    на `MutableList`/`MutableStateFlow`. Моки не использовать.
 7. **Тесты слайса** — через точку входа (сценарий или ViewModel) с фейками; проверять
