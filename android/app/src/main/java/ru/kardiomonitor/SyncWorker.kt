@@ -12,8 +12,8 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.withTimeout
 import ru.kardiomonitor.ble.GattClient
+import ru.kardiomonitor.ble.withResponseTimeout
 import ru.kardiomonitor.data.BandConfig
 import java.util.concurrent.TimeUnit
 
@@ -30,19 +30,22 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
             return Result.success()
         }
         return try {
-            withTimeout(3 * 60_000) { BandManager.get(applicationContext).backgroundSync(config) }
+            withResponseTimeout(SYNC_TIMEOUT_MS, "фоновая синхронизация") {
+                BandManager.get(applicationContext).backgroundSync(config)
+            }
             Result.success()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             // Не повторяем сразу: браслета может не быть рядом. Следующая попытка — через 30 минут.
-            Log.w(GattClient.TAG, "фоновая синхронизация не удалась: ${e.message}")
+            Log.w(GattClient.TAG, "фоновая синхронизация не удалась", e)
             Result.success()
         }
     }
 
     companion object {
         private const val WORK_NAME = "band-sync"
+        private const val SYNC_TIMEOUT_MS = 3 * 60_000L
 
         fun schedule(context: Context) {
             val request = PeriodicWorkRequestBuilder<SyncWorker>(30, TimeUnit.MINUTES).build()

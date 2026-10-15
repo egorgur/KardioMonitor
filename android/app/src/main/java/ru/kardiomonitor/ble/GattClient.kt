@@ -20,7 +20,6 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.IOException
 import java.util.UUID
@@ -131,7 +130,7 @@ class GattClient(private val context: Context) {
         connecting = deferred
         gatt = device.connectGatt(context, false, callback, BluetoothDevice.TRANSPORT_LE)
         try {
-            withTimeout(20_000) { deferred.await() }
+            withResponseTimeout(CONNECT_TIMEOUT_MS, "подключение") { deferred.await() }
         } catch (e: Exception) {
             disconnect()
             throw e
@@ -166,10 +165,7 @@ class GattClient(private val context: Context) {
             pending = deferred
             try {
                 if (!start(g)) throw IOException("Android не принял GATT-операцию")
-                // Таймаут — сбой связи, а не отмена: иначе catch (CancellationException) у
-                // вызывающего молча завершит корутину вместо показа ошибки.
-                withTimeoutOrNull(timeoutMs) { deferred.await() }
-                    ?: throw IOException("браслет не ответил за $timeoutMs мс")
+                withResponseTimeout(timeoutMs, "GATT-операция") { deferred.await() }
             } finally {
                 pending = null
             }
@@ -228,6 +224,7 @@ class GattClient(private val context: Context) {
 
     companion object {
         const val TAG = "KardioBLE"
+        private const val CONNECT_TIMEOUT_MS = 20_000L
 
         /** 00002a39-0000-1000-… -> 2a39 */
         private fun shortUuid(uuid: UUID) = uuid.toString().substring(4, 8)

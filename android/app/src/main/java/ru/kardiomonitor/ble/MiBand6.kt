@@ -4,7 +4,6 @@ import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeout
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.time.ZoneOffset
@@ -54,18 +53,16 @@ class MiBand6(private val gatt: GattClient, private val scope: CoroutineScope) {
             for (chunk in encoder.encode(ENDPOINT_AUTH, data)) gatt.write(CHUNKED_WRITE, chunk)
         }
 
-        suspend fun expect(command: Int): ByteArray = withTimeout(10_000) {
-            while (true) {
+        suspend fun expect(command: Int): ByteArray = withResponseTimeout(RESPONSE_TIMEOUT_MS, "авторизация") {
+            var payload: ByteArray
+            do {
                 val m = messages.receive()
-                val p = m.payload
-                if (m.endpoint != ENDPOINT_AUTH || p.size < 3 || p[0] != 0x10.toByte() || p[1] != command.toByte()) {
-                    continue
-                }
-                if (p[2] != 0x01.toByte()) throw AuthException(authError(p))
-                return@withTimeout p
-            }
-            @Suppress("UNREACHABLE_CODE")
-            ByteArray(0)
+                payload = m.payload
+                val matches = m.endpoint == ENDPOINT_AUTH && payload.size >= 3 &&
+                    payload[0] == 0x10.toByte() && payload[1] == command.toByte()
+            } while (!matches)
+            if (payload[2] != 0x01.toByte()) throw AuthException(authError(payload))
+            payload
         }
 
         send(auth.pubkeyCommand())
@@ -78,7 +75,7 @@ class MiBand6(private val gatt: GattClient, private val scope: CoroutineScope) {
         val responses = Channel<ByteArray>(Channel.UNLIMITED)
         gatt.enableNotifications(AUTH) { responses.trySend(it) }
 
-        suspend fun expect(prefix: ByteArray): ByteArray = withTimeout(10_000) {
+        suspend fun expect(prefix: ByteArray): ByteArray = withResponseTimeout(RESPONSE_TIMEOUT_MS, "авторизация") {
             val r = responses.receive()
             if (r.size < 3 || !r.copyOf(3).contentEquals(prefix)) throw AuthException(authError(r))
             r
@@ -169,16 +166,13 @@ class MiBand6(private val gatt: GattClient, private val scope: CoroutineScope) {
             }
         }
 
-        suspend fun expect(command: Int): ByteArray = withTimeout(15_000) {
-            while (true) {
-                val r = control.receive()
-                if (r.size >= 3 && r[0] == 0x10.toByte() && r[1] == command.toByte()) {
-                    if (r[2] != 0x01.toByte()) throw IOException("браслет отклонил команду $command: ${r.toHex()}")
-                    return@withTimeout r
-                }
-            }
-            @Suppress("UNREACHABLE_CODE")
-            ByteArray(0)
+        suspend fun expect(command: Int): ByteArray = withResponseTimeout(FETCH_TIMEOUT_MS, "выгрузка истории") {
+            var r: ByteArray
+            do {
+                r = control.receive()
+            } while (r.size < 3 || r[0] != 0x10.toByte() || r[1] != command.toByte())
+            if (r[2] != 0x01.toByte()) throw IOException("браслет отклонил команду $command: ${r.toHex()}")
+            r
         }
 
         val samples = mutableListOf<ActivitySample>()
@@ -226,6 +220,8 @@ class MiBand6(private val gatt: GattClient, private val scope: CoroutineScope) {
         val HR_CONTROL = sig(0x2A39)
 
         private const val MAX_ROUNDS = 30
+        private const val RESPONSE_TIMEOUT_MS = 10_000L
+        private const val FETCH_TIMEOUT_MS = 15_000L
         private const val SAMPLE_SIZE = 8 // Mi Band 6
 
         const val KIND_NOT_WORN = 115

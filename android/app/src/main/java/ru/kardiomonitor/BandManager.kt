@@ -193,6 +193,8 @@ class BandManager private constructor(private val context: Context) {
         }
         try {
             sync(open(config, background = true), background = true)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             recordSync(LastSync(Instant.now().epochSecond, "ошибка: ${e.message}", background = true))
             throw e
