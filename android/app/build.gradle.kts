@@ -51,4 +51,6 @@ dependencies {
     implementation("androidx.work:work-runtime-ktx:2.10.0")
 
     testImplementation("junit:junit:4.13.2")
+    // org.json есть в Android, но в JVM-тестах — заглушки: настоящий — для тестов JSON (ADR-0006)
+    testImplementation("org.json:json:20260814")
 }

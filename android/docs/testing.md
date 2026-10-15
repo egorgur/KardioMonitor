@@ -85,7 +85,7 @@ minSdk 26 не проходят D8 (нужен API 30+): там имя — camel
 ```bash
 ./gradlew installDebug
 adb logcat -c && adb shell am start -n ru.kardiomonitor/.MainActivity
-adb logcat -v time -s KardioBLE:*          # команды браслету и ответы
+adb logcat -v time -s KardioBLE:* KardioServer:*   # браслет и сервер клиники
 ```
 
 Что искать в журнале:
@@ -96,6 +96,8 @@ adb logcat -v time -s KardioBLE:*          # команды браслету и 
 | `авторизация успешна` | Протокол Huami 2021 пройден |
 | `write 2a39 140a -> status 0` | Браслет принял команду (частота пульса 10 мин) |
 | `синхронизация (фон): загружено N мин` | Фоновая синхронизация отработала |
+| `KardioServer: отправлено врачу: N мин` | Новые минуты ушли на сервер клиники |
+| `KardioServer: телефон зарегистрирован на https://…` | Регистрация на сервере прошла |
 
 Фоновую синхронизацию можно запустить без ожидания 30 минут:
 

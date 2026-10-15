@@ -99,6 +99,15 @@ async def test_пакет_с_нарушением_правила_не_сохра
     assert transaction.commits == 0
 
 
+async def test_пустой_пакет_отклоняется_с_кодом_правила_а_не_общей_ошибкой_формата(
+    client: AsyncClient,
+) -> None:
+    response = await client.post(URL, json={"minutes": []})
+
+    assert response.status_code == 422
+    assert response.json()["code"] == "empty_minute_batch"
+
+
 async def test_время_минуты_без_часового_пояса_отклоняется(client: AsyncClient) -> None:
     naive = minute_json(10, 0) | {"started_at": "2026-10-15T10:00:00"}
 

@@ -11,6 +11,9 @@
         tools:targetApi="s" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
+    <!-- Отправка данных браслета на сервер клиники (для демо — через ngrok, только HTTPS) -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!-- Android 8–11: BLE-сканирование требует геолокацию -->
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />

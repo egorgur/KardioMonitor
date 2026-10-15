@@ -51,6 +51,16 @@ class SqliteActivityHistory(private val database: KardioDatabase) : ActivityHist
         }
     }
 
+    override suspend fun minutesAfter(after: Instant?, limit: Int): List<ActivityMinute> = withDatabase {
+        val from = after?.epochSecond ?: Long.MIN_VALUE
+        database.readableDatabase.rawQuery(
+            "SELECT ts, hr, steps, kind, intensity FROM $ACTIVITY_TABLE WHERE ts > ? ORDER BY ts LIMIT ?",
+            arrayOf(from.toString(), limit.toString()),
+        ).use { cursor ->
+            buildList { while (cursor.moveToNext()) add(cursor.toActivityMinute()) }
+        }
+    }
+
     private fun insert(minutes: List<ActivityMinute>) {
         val db = database.writableDatabase
         db.beginTransaction()

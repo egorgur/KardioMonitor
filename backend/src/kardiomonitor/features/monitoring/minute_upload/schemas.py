@@ -41,7 +41,11 @@ class ActivityMinuteIn(ApiModel):
 class MinuteBatchIn(ApiModel):
     """Пакет минут: 1–10 080 (7 суток)."""
 
-    minutes: Annotated[list[ActivityMinuteIn], Field(min_length=1, max_length=MAX_BATCH_MINUTES)]
+    # Размер проверяет домен (MinuteBatch): телефон получает точный code, а не invalid_request.
+    minutes: Annotated[
+        list[ActivityMinuteIn],
+        Field(description=f"1–{MAX_BATCH_MINUTES} минут, без повторов started_at"),
+    ]
 
     def to_domain(self) -> MinuteBatch:
         return MinuteBatch(tuple(minute.to_domain() for minute in self.minutes))

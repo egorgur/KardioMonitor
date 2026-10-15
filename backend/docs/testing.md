@@ -9,98 +9,88 @@
 Все команды — из `backend/`.
 
 ```bash
-uv sync                                   # установить зависимости из uv.lock
-docker compose up -d db                   # PostgreSQL для тестов с меткой db и для разработки
-uv run alembic upgrade head               # применить миграции к базе разработки
-uv run uvicorn kardiomonitor.app.main:create_app --factory --reload   # сервер, http://127.0.0.1:8000/docs
-
-uv run pytest -m "not db"                 # быстрые тесты без базы, секунды
-uv run pytest -m db                       # репозитории и миграции на настоящей PostgreSQL
+uv sync                                   # зависимости из uv.lock
+./scripts/check.sh                        # полная проверка — перед завершением задачи
 uv run pytest tests/features/monitoring/minute_upload   # один слайс
-uv run ruff format --check && uv run ruff check   # стиль и правила кода
+uv run pytest -k "часовом_поясе"          # по части имени теста
+uv run ruff format src tests scripts && uv run ruff check --fix src tests scripts
 uv run mypy src tests                     # типы (strict)
 uv run lint-imports                       # границы слайсов и контекстов
 ```
 
-Полная проверка перед завершением задачи (`scripts/check.sh` повторяет её):
-
-```bash
-uv run ruff format --check && uv run ruff check && uv run mypy src tests \
-  && uv run lint-imports && uv run pytest
-```
-
-Исправить формат и простые замечания: `uv run ruff format && uv run ruff check --fix`.
+`scripts/check.sh` = `ruff format --check` + `ruff check` + `mypy` + `lint-imports` + `pytest`
+(~10 с). Ruff ограничен `src tests scripts`: иначе он форматирует примеры кода в `docs/*.md`.
 
 ## Что и как тестировать
 
 | Уровень | Что | Как | Где |
 |---|---|---|---|
-| Домен | Правила предметной области: допустимый пульс, пакет минут, итоги дня, часовой пояс дня | Чистые pytest-тесты, без моков и без async | `tests/features/<контекст>/domain/` |
-| Слайс | Эндпоинт целиком: HTTP-запрос → ответ и состояние фейка | `httpx.AsyncClient` + `ASGITransport`, фейки портов через `app.dependency_overrides` | `tests/features/<контекст>/<слайс>/` |
-| Репозиторий | SQL, upsert, часовые пояса, индексы | Настоящая PostgreSQL, метка `@pytest.mark.db` | `tests/features/<контекст>/data/` |
-| Миграции | `upgrade head` с нуля, `downgrade -1`, модели совпадают со схемой | `alembic upgrade/downgrade`, `alembic check`, метка `db` | `tests/migrations/` |
-| Контракт | OpenAPI не изменился случайно | Сравнение `app.openapi()` с `tests/contract/openapi.json` | `tests/contract/` |
+| Домен | Правила: допустимый пульс, пакет минут, итоги дня, день пациента, имя, токен | Чистые pytest-тесты, без моков и без async | `tests/features/<контекст>/domain/` |
+| Слайс | Эндпоинт целиком: HTTP-запрос → ответ и состояние фейка | `httpx.AsyncClient` + `ASGITransport`, фейки портов через dishka `override=True` | `tests/features/<контекст>/<слайс>/` |
+| Репозиторий | SQL, upsert, порции, часовые пояса | Настоящая SQLite во временном файле (`tests/database.py`) | `tests/features/<контекст>/data/` |
+| Сквозной | Телефон регистрируется и шлёт данные → панель их видит | Всё приложение с `lifespan` и настоящей SQLite | `tests/test_end_to_end.py` |
+| Контракт | OpenAPI не изменился случайно | Сравнение со снимком `tests/contract/openapi.json` | `tests/contract/` |
 | Архитектура | Границы, правила кода | `lint-imports` + `tests/architecture/` | `pyproject.toml`, `tests/architecture/` |
 
 ### Правила
 
-1. **Проверяйте результат, а не реализацию.** Тест слайса смотрит на статус и тело
-   ответа и на то, что лежит в `FakeActivityHistory`, а не на то, какие методы вызывались.
-   Порядок предпочтения: выходное значение → состояние → взаимодействие.
+1. **Проверяйте результат, а не реализацию.** Тест слайса смотрит на статус и тело ответа и
+   на то, что лежит в фейке, а не на то, какие методы вызывались.
 2. **Фейки вместо моков.** Рукописный `FakeActivityHistory` со словарём внутри понятнее
-   агенту, чем `MagicMock`, проверяется mypy по `Protocol` и не ломается при рефакторинге.
-   Фейки — в `tests/features/<контекст>/fakes.py`. `unittest.mock` — только для
-   внешнего мира, который нельзя подделать иначе (часы — через параметр, не мок).
-3. **Репозитории — только на PostgreSQL**, не на SQLite: другие типы времени, другой
-   upsert, другие ограничения. Каждый тест — в транзакции, которая откатывается.
-4. **Время — параметром.** Код, которому нужно «сейчас», получает `now: datetime` или
-   `Clock`-зависимость; тест передаёт фиксированное время. Никаких `sleep` в тестах.
+   агенту, чем `MagicMock`, и проверяется mypy по `Protocol`. Фейки — в
+   `tests/features/<контекст>/fakes.py`; общие (`FixedClock`, `FakeTransaction`) — в `tests/fakes.py`.
+3. **Фиксация транзакции проверяется.** Сценарий с записью — `FakeTransaction.commits == 1`
+   при успехе и `== 0` при отказе (ADR-0005).
+4. **Время — через `Clock`.** Код, которому нужно «сейчас», получает `Clock` из dishka;
+   тест подменяет его `FixedClock`. Никаких `sleep` в тестах.
 5. **Новое правило предметной области = новый тест** в той же задаче.
 6. **Баг = сначала падающий тест**, воспроизводящий его, потом исправление.
-7. **Общие с Android правила** (`DailySummary`, `HeartRate`) — тест на тех же данных, что
-   в Android (`DailySummaryTest`): одинаковый вход — одинаковый итог.
-8. **Проверка упала — исправляйте код, а не проверку.** Ослабить правило, добавить
-   исключение в import-linter или `per-file-ignores` можно только изменив
-   [architecture.md](architecture.md) или [coding-rules.md](coding-rules.md) с согласия человека.
+7. **Общие с Android правила** (`DailySummary`, `HeartRate`) — на тех же данных, что в
+   Android (`DailySummaryTest`): одинаковый вход — одинаковый итог.
+8. **Проверка упала — исправляйте код, а не проверку.** Ослабить правило, добавить исключение
+   в import-linter или `per-file-ignores` можно только изменив [architecture.md](architecture.md)
+   или [coding-rules.md](coding-rules.md) с согласия человека.
 
 ### Тест слайса — образец
 
 ```python
 @pytest.fixture
-def history() -> FakeActivityHistory:
-    return FakeActivityHistory()
-
-
-@pytest.fixture
-async def client(history: FakeActivityHistory) -> AsyncIterator[AsyncClient]:
-    app = create_app(test_settings())
-    app.dependency_overrides[activity_history] = lambda: history
-    app.dependency_overrides[current_patient] = lambda: PATIENT
+async def client(history: FakeActivityHistory, transaction: FakeTransaction) -> AsyncIterator[AsyncClient]:
+    app = create_app(
+        settings_for_tests(),
+        replacing(                                   # провайдер dishka с override=True
+            (ActivityHistory, history),
+            (Transaction, transaction),
+            (CurrentPatient, CurrentPatient(PATIENT)),
+        ),
+    )
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         yield client
 
 
 async def test_повторная_загрузка_тех_же_минут_не_дублирует_историю(
-    client: AsyncClient, history: FakeActivityHistory,
+    client: AsyncClient, history: FakeActivityHistory
 ) -> None:
-    body = minute_batch_json(minutes=30)
+    body = {"minutes": [minute_json(10, m) for m in range(30)]}
 
     await client.post("/api/v1/me/activity-minutes", json=body)
     response = await client.post("/api/v1/me/activity-minutes", json=body)
 
-    assert response.status_code == 200
     assert response.json()["new"] == 0
-    assert len(history.minutes_of_patient(PATIENT.id)) == 30
+    assert len(history.minutes_of(PATIENT.id)) == 30
 ```
 
-`ASGITransport` не запускает `lifespan`: тесты слайсов не нуждаются в базе. Тесты, которым
-нужен полный запуск, используют `asgi-lifespan` или `TestClient` как контекстный менеджер.
+`ASGITransport` не запускает `lifespan`: тестам слайсов с фейками база не нужна. Тестам с
+настоящей базой — `async with app.router.lifespan_context(app)` (см. `test_end_to_end.py`).
+
+HTTP-заголовки — только ASCII: кириллица в `Authorization` или `X-Dashboard-Key` в тесте
+даёт `UnicodeEncodeError` в httpx, а не проверку сервера.
 
 ### Имена тестов
 
-Имя описывает поведение так, чтобы его понял врач или пациент, — фактом, а не
-пожеланием, без имени тестируемой функции (по Владимиру Хорикову, skill `test-namer`).
-Python допускает кириллицу в идентификаторах — как и в Android-тестах, имена на русском:
+Имя описывает поведение так, чтобы его понял врач или пациент, — фактом, а не пожеланием,
+без имени тестируемой функции (по Владимиру Хорикову, skill `test-namer`). Python допускает
+кириллицу в идентификаторах — как и в Android-тестах, имена на русском:
 
 ```python
 # Плохо
@@ -108,35 +98,30 @@ def test_heart_rate_validation_raises(): ...
 def test_should_return_422_for_invalid_batch(): ...
 
 # Хорошо
-def test_пульс_выше_249_не_принимается(): ...
+def test_пульс_вне_11_249_не_принимается(): ...
 def test_минута_без_браслета_не_учитывается_в_покрытии_пульсом(): ...
-def test_день_пациента_считается_в_его_часовом_поясе(): ...
+def test_минута_2359_по_новосибирску_относится_к_своему_дню_а_не_к_следующему_по_utc(): ...
 ```
 
-**[тест]** `tests/architecture/` проверяет, что имя теста в `features/` содержит
-кириллицу. Для служебного кода без предметного смысла (`platform/`) имя тоже описывает
-результат: `test_токен_сравнивается_за_постоянное_время`.
+**[тест]** `tests/architecture/` проверяет, что имя теста в `tests/features/` содержит кириллицу.
 
 ## Проверка вручную
 
 ```bash
-uv run uvicorn kardiomonitor.app.main:create_app --factory --reload
-# Swagger UI: http://127.0.0.1:8000/docs — схема и пробные запросы
-curl -s http://127.0.0.1:8000/health
-curl -s -H "Authorization: Bearer $KARDIO_DEV_UPLOAD_TOKEN" \
-     http://127.0.0.1:8000/api/v1/me/activity-minutes/last
+uv run uvicorn kardiomonitor.app.main:create_app --factory --reload      # /docs — Swagger
+uv run python scripts/simulate_phone.py http://127.0.0.1:8000 --live-seconds 120
 ```
 
-Токен для разработки создаётся в базе разработки сценарием регистрации; в репозиторий и
-историю команд он не попадает (переменная окружения из `.env`).
+Имитатор делает то же, что телефон: регистрация, история за вчера и сегодня, «пульс сейчас».
+Панель — `http://127.0.0.1:8000/` (после `npm run build` во `frontend/`) или
+`npm run dev` во `frontend/` (http://localhost:5173).
 
-Сквозная проверка с телефоном: Android-приложение в debug-сборке указывает на адрес
-сервера в локальной сети; в журнале сервера видно `request_id` и число принятых минут.
+Сквозная проверка с телефоном — по [../README.md](../README.md): ngrok, регистрация в
+приложении, синхронизация, «пульс сейчас». В журнале сервера — `request_id` каждого запроса,
+в журнале телефона — тег `KardioServer` (`adb logcat -s KardioServer:*`).
 
 ## Ограничения
 
-- Тесты с меткой `db` требуют запущенного `docker compose up -d db` (или podman) и
-  пропускаются с понятным сообщением, если база недоступна, — но в полной проверке
-  перед завершением задачи они **должны** выполняться.
-- Тестовая база создаётся и удаляется тестами; базу разработки и тем более сервера
-  тесты не трогают (адрес — из `KARDIO_TEST_DATABASE_URL`).
+- Тесты репозиториев — на SQLite, как и демо ([ADR-0007](adr/0007-sqlite-for-demo.md)).
+  При переходе на PostgreSQL они переезжают на неё (метка `db`, docker).
+- База демо (`kardio.db`) тестами не затрагивается: тесты создают свою во временном каталоге.

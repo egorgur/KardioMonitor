@@ -15,6 +15,9 @@ class KardioApplication : Application(), Configuration.Provider {
         super.onCreate()
         container = AppContainer(this)
         container.backgroundSyncSchedule.start()
+        // Подписки на события «история пополнилась» и «пульс сейчас измерен» — отправка врачу
+        container.minuteUploader.start()
+        container.liveHeartRateSharing.start()
     }
 
     override val workManagerConfiguration: Configuration

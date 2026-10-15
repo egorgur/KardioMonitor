@@ -116,8 +116,9 @@ async def save(self, patient_id: PatientId, batch: MinuteBatch) -> SaveOutcome: 
 - **Ожидаемые исходы сценария** (пациент не найден, телефон отозван) — возвращаемые
   типы, а не исключения. Эндпоинт явно переводит их в HTTP (`404`, `409`), см.
   [api-contract.md](api-contract.md).
-- **`HTTPException` — только в `router.py` и зависимостях**, никогда в домене и сценарии:
-  они не знают об HTTP.
+- **`ProblemError` (`platform.web`) — только в `router.py`, `api.py` и зависимостях**,
+  никогда в домене и сценарии: они не знают об HTTP. `HTTPException` не используется —
+  у него нет стабильного `code` для клиента.
 - **Исключения инфраструктуры** (`sqlalchemy.exc.*`, `httpx.*`) переводятся в доменные на
   границе — в `data/`, если у них есть смысл для предметной области. Иначе — пусть
   поднимаются: `app/errors.py` ответит `500` и запишет трассировку.
@@ -146,28 +147,31 @@ async def save(self, patient_id: PatientId, batch: MinuteBatch) -> SaveOutcome: 
   перезапуске. Важная фоновая работа — отдельный воркер, через ADR.
 - `AsyncSession` не делится между задачами: одна сессия — один запрос — одна корутина.
 
-## 9. FastAPI
+## 9. FastAPI и dishka
 
-- **Фабрика приложения:** `create_app(settings: Settings | None = None) -> FastAPI`.
-  Тесты создают своё приложение со своими настройками.
-- **`lifespan`, а не `@app.on_event`:** engine, sessionmaker, HTTP-клиенты создаются в
-  `lifespan`, кладутся в `app.state` и закрываются после `yield`.
-- **Зависимости — через `Annotated`-псевдонимы:**
-  `ActivityHistoryDep = Annotated[ActivityHistory, Depends(activity_history)]`.
-  Псевдоним объявляется один раз в `dependencies.py` / `api.py` контекста.
-- **Зависимости для проверок:** «токен действителен», «пациент существует» — зависимость,
-  которая либо возвращает объект, либо отвечает `401/404`. Эндпоинт не повторяет проверку.
-  FastAPI кеширует зависимость в пределах запроса — вызывать её в нескольких местах дёшево.
-- **Модель ответа — через аннотацию возврата:** `-> UploadReceiptOut`. FastAPI проверит и
-  отфильтрует поля. Не возвращайте ORM-объекты, доменные объекты и `dict`.
+- **Фабрика приложения:** `create_app(settings=None, *overrides) -> FastAPI`. Тесты создают
+  своё приложение со своими настройками и провайдерами-подменами.
+- **`lifespan`, а не `@app.on_event`:** при запуске — схема базы (демо), при остановке —
+  `container.close()` (закрывает engine и другие ресурсы `Scope.APP`).
+- **Зависимости — dishka** ([ADR-0003](adr/0003-dependency-injection-dishka.md)): роутер слайса
+  `APIRouter(route_class=DishkaRoute)`, параметры `FromDishka[Порт]`. Реализации связываются в
+  `provider.py` контекста. Новый порт → `Protocol` в `domain/`, реализация в `data/`,
+  строка `provide(...)` в провайдере.
+- **FastAPI `Depends` — только HTTP-детали:** схема безопасности для OpenAPI (`bearer_scheme`),
+  заголовок `X-Dashboard-Key` (`require_dashboard_access` с `@inject`).
+- **Проверки — в провайдере или зависимости:** «токен действителен» — провайдер
+  `CurrentPatient` (иначе `NotAuthenticatedError` → 401), «пациент существует» —
+  `require_patient` (иначе 404). Эндпоинт не повторяет проверку.
+- **Модель ответа — через аннотацию возврата:** `-> UploadReceiptOut`. Не возвращайте
+  ORM-объекты, доменные объекты и `dict`.
 - **Отдельные схемы запроса и ответа** (`…In`, `…Out`), даже если поля совпадают сегодня.
 - **Явный `status_code`** для всего, кроме `200`: `201` при создании, `204` без тела.
-- **Документирование:** `summary=` на русском, docstring эндпоинта — описание для
-  OpenAPI, `responses={404: {"model": ProblemDetail}}` для ожидаемых ошибок.
+- **Ожидаемые ошибки — `ProblemError(status=…, code=…, title=…)`** из `platform.web`;
+  `HTTPException` не используется — у него нет `code`.
+- **Документирование:** `summary=` на русском, docstring эндпоинта — описание для OpenAPI.
 - `APIRouter(prefix="/api/v1", tags=[...])` — в каждом слайсе; версия — часть пути.
-- Без `Request` в эндпоинтах, если можно получить значение зависимостью или параметром.
-- Middleware — только сквозная техника (request id, логирование времени запроса);
-  проверки доступа — зависимостями, их видно в сигнатуре эндпоинта.
+- Без `Request` в эндпоинтах: значение — параметром, `FromDishka` или провайдером.
+- Middleware — только сквозная техника (request id); проверки доступа — в сигнатуре эндпоинта.
 
 ## 10. Pydantic v2
 
@@ -176,37 +180,40 @@ async def save(self, patient_id: PatientId, batch: MinuteBatch) -> SaveOutcome: 
 - Общая база схем — `platform.web.ApiModel` с
   `ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=True)`.
   `extra="forbid"` — опечатка в поле от клиента даёт `422`, а не тихую потерю данных.
-- Ограничения — в типах: `Annotated[int, Field(ge=0, le=255)]`, `AwareDatetime`
-  (время без часового пояса отклоняется), `UUID`, `Literal[...]`.
+- Время: в запросах — `AwareDatetime` (без пояса — `422`), в ответах — `UtcDatetime`
+  из `platform.web` (всегда UTC с `Z`, как обещает контракт).
+- Ограничения формата — в типах: `Annotated[int, Field(ge=0, le=255)]`, `UUID`, `Literal[...]`.
 - Схема знает, как перевести себя в домен и обратно: `def to_domain(self) -> MinuteBatch`,
   `@classmethod from_domain(cls, receipt) -> Self`. Домен о схемах не знает.
-- Схема проверяет **формат**, домен — **правила**. Диапазон пульса один раз — в
-  `HeartRate`; в схеме допустимо продублировать его в `Field` ради документации OpenAPI.
-- Настройки — `pydantic-settings`: `class Settings(BaseSettings)` с
-  `env_prefix="KARDIO_"`, секреты — `SecretStr`. `.env` не коммитится; пример —
-  `.env.example`.
+- Схема проверяет **формат**, домен — **правила**. Правило с собственным `code` (размер
+  пакета, повтор минуты) не дублируйте в `Field`: иначе клиент получит общий
+  `invalid_request` вместо точного кода. Диапазон пульса в `Field` допустим — ради OpenAPI.
+- Настройки — `pydantic-settings`: `Settings(BaseSettings)` с `env_prefix="KARDIO_"`,
+  секреты — `SecretStr`; пустое значение в `.env` — «не задано». `.env` не коммитится;
+  пример — `.env.example`.
 
 ## 11. SQLAlchemy 2.0 и база данных
 
 - Только стиль 2.0: `select()`, `insert()`, `Mapped[...]`, `mapped_column()`; без
   `session.query()`.
-- Таблицы — в `features/<контекст>/data/tables.py`, имена — `snake_case` во
-  множественном числе (`activity_minutes`). Общая `Base` с naming convention для
-  индексов и ограничений — в `platform/db` (иначе Alembic не сможет их переименовать).
-- Колонки времени — `DateTime(timezone=True)` (`timestamptz`), значения в UTC; имена:
-  `*_at` — момент, `*_on` — дата.
+- Таблицы — в `features/<контекст>/data/tables.py`, классы `…Row`, имена таблиц —
+  `snake_case` во множественном числе (`activity_minutes`). Общая `Base` с naming convention
+  — в `platform/db`.
+- Время — тип `UtcDateTime` из `platform/db` (SQLite не хранит пояс: пишем UTC, читаем
+  с UTC; время без пояса записать нельзя). Имена: `*_at` — момент, `*_on` — дата.
 - В async **нет ленивой загрузки**: связи — `lazy="raise"`, нужные данные —
   `selectinload` или отдельный запрос. Иначе — `MissingGreenlet` в рантайме.
-- Массовая запись — одним `insert(...).on_conflict_do_update(...)` (PostgreSQL), не
-  циклом `session.add`. Это и делает загрузку идемпотентной.
+- Массовая запись — `sqlite.insert(...).on_conflict_do_update(...)` порциями по 1000 строк
+  (лимит параметров SQLite), не циклом `session.add`. Это и делает загрузку идемпотентной.
 - `expire_on_commit=False` у sessionmaker — объекты читаемы после фиксации.
-- Транзакция — одна на запрос ([ADR-0005](adr/0005-transaction-per-request.md)). Репозиторий
-  не вызывает `commit()`.
-- Схема меняется **только миграцией Alembic**; `Base.metadata.create_all` — только в
-  тестах. Миграция: автогенерация → **прочитать и поправить руками** → `upgrade` на
-  тестовой базе → `downgrade` → `upgrade`. Применённую миграцию не редактировать.
+- **Транзакцию фиксирует сценарий** (`await transaction.commit()` до возврата), не
+  репозиторий и не финализатор: dishka закрывает сессию уже после ответа
+  ([ADR-0005](adr/0005-transaction-per-request.md)).
+- Схема демо — `create_all` при запуске, без миграций ([ADR-0007](adr/0007-sqlite-for-demo.md)).
+  Перед реальными пациентами — Alembic: автогенерация → **прочитать и поправить руками** →
+  `upgrade` → `downgrade` → `upgrade`; применённую миграцию не редактировать.
 - Удаление колонок и таблиц с данными пациентов — только с согласия человека.
-- Индексы — под реальные запросы: `(patient_id, started_at)` для истории.
+- Индексы — под реальные запросы: первичный ключ `(patient_id, started_at)` для истории.
 - Сырой SQL — только через `text()` с параметрами; без f-строк в SQL (**[ruff `S608`]**).
 
 ## 12. Комментарии и документация
@@ -220,76 +227,45 @@ async def save(self, patient_id: PatientId, batch: MinuteBatch) -> SaveOutcome: 
 
 ## 13. Логирование и персональные данные
 
-- `logger = logging.getLogger(__name__)`; **[ruff `T20`]** без `print`.
+- `logger = logging.getLogger(__name__)`; **[ruff `T20`]** без `print` (кроме `scripts/`).
 - Сообщения — с параметрами `logger.info("принято %d минут", count)`, не f-строками
   (**[ruff `G004`]**): форматирование только если уровень включён.
-- **Никогда не логировать:** токены, заголовок `Authorization`, тела запросов с
-  данными пациента, ФИО, `DATABASE_URL` с паролем, ключи браслета.
+- **Никогда не логировать:** токены, заголовки `Authorization` и `X-Dashboard-Key`, тела
+  запросов с данными пациента, имена пациентов, ключи браслета.
 - В логе пациент — только `PatientId`; значения пульса и шагов — только в отладке на
-  машине разработчика, не на сервере.
+  машине разработчика.
 - Каждый запрос получает `request_id` (middleware), он пишется в лог и в ответ
   (`X-Request-ID`) — по нему ищут ошибку, а не по данным пациента.
-- Токены хранятся только хешем; сравнение — `secrets.compare_digest`.
+- Токены хранятся только отпечатком (SHA-256); ключ панели сравнивается `secrets.compare_digest`.
 - Ответ `500` не раскрывает трассировку и SQL — только `request_id`.
-- CORS выключен, пока нет веб-клиента; включать — со списком конкретных доменов.
+- CORS выключен: панель раздаётся с того же адреса, что и API. Включать — со списком доменов.
+- Ссылка ngrok публичная: для демо с реальными данными задавайте `KARDIO_DASHBOARD_KEY`.
 
 ## 14. Зависимости и окружение
 
 - Python 3.13, менеджер — `uv`. Новая библиотека — `uv add <пакет>` **только с
   обоснованием в ADR** ([adr/](adr/)) и согласием человека. Каждая зависимость — то,
   что агенту нужно знать и обновлять.
-- `uv.lock` коммитится; версии в `pyproject.toml` — с нижней границей (`fastapi>=0.121.1` — нужен `Depends(scope=...)`, ADR-0005),
-  точные версии — в lock-файле.
-- Инструменты разработки — в группе `dev` (`uv add --dev`): pytest, ruff, mypy,
-  import-linter.
+- Сейчас: fastapi, uvicorn, dishka, sqlalchemy[asyncio], aiosqlite, pydantic-settings;
+  dev — pytest, pytest-asyncio, httpx, ruff, mypy, import-linter.
+- `uv.lock` коммитится; версии в `pyproject.toml` — с нижней границей, точные — в lock-файле.
 
 ## Настройки инструментов
 
-Эталон для `pyproject.toml` — создаётся вместе с каркасом:
-
-```toml
-[tool.ruff]
-target-version = "py313"
-line-length = 100
-src = ["src", "tests"]
-
-[tool.ruff.lint]
-select = ["E", "W", "F", "I", "N", "UP", "B", "A", "C4", "C90", "SIM", "RET", "ARG", "PTH",
-          "ASYNC", "S", "T20", "ANN", "FBT", "DTZ", "ERA", "G", "BLE", "TRY", "PT", "PL", "RUF"]
-ignore = [
-    "RUF001", "RUF002", "RUF003",   # кириллица в строках и комментариях — норма проекта
-    "TRY003",                       # сообщение исключения на русском прямо в raise — норма проекта
-]
-
-[tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101", "PLR2004", "PLC2401"]   # assert, числа в проверках, русские имена тестов
-
-[tool.ruff.lint.mccabe]
-max-complexity = 10
-
-[tool.ruff.lint.pylint]
-max-args = 6
-max-statements = 30
-max-nested-blocks = 3
-
-[tool.mypy]
-python_version = "3.13"
-strict = true
-plugins = ["pydantic.mypy"]
-
-[tool.pytest.ini_options]
-asyncio_mode = "auto"
-asyncio_default_fixture_loop_scope = "session"
-markers = ["db: тест с настоящей PostgreSQL (нужен compose up db)"]
-```
+Действующие настройки ruff, mypy, pytest и контракты import-linter — в
+[`../pyproject.toml`](../pyproject.toml). Главное: ruff с правилами `E W F I N UP B A C4 C90
+SIM RET ARG PTH ASYNC S T20 ANN FBT DTZ ERA G BLE TRY PT PL RUF`; исключения — кириллица в
+строках (`RUF001–003`), сообщения в `raise` (`TRY003`), имена исключений из глоссария
+(`N818`); в тестах — `assert`, числа, русские имена; в `scripts/` — `print`, `random`.
+mypy — `strict` с плагином pydantic. pytest — `asyncio_mode = "auto"`.
 
 ## Чек-лист перед завершением задачи
 
 - [ ] Код лежит в слайсе/контексте согласно [architecture.md](architecture.md); новый слайс добавлен в контракты import-linter
 - [ ] Новые термины добавлены в [domain-model.md](domain-model.md); общие с Android — совпадают
 - [ ] Правила предметной области — в доменных типах и покрыты тестами
-- [ ] Полная проверка ([testing.md](testing.md)) проходит; проверки не ослаблены
+- [ ] `./scripts/check.sh` проходит ([testing.md](testing.md)); проверки не ослаблены
 - [ ] Изменение контракта API — по правилам [api-contract.md](api-contract.md), снимок OpenAPI обновлён осознанно
-- [ ] Изменение схемы БД — миграцией, проверены `upgrade` и `downgrade`
+- [ ] Сценарий с записью вызывает `transaction.commit()`; тест проверяет `FakeTransaction.commits`
 - [ ] В логах нет секретов и данных пациентов
 - [ ] Обновлены документы, если изменились архитектура, контракт или решения (ADR)

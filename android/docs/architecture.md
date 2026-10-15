@@ -30,7 +30,7 @@
 | **Браслет** | `features.band` | Поддерживающий | Учётные данные браслета, сеанс связи, настройки браслета, заряд |
 | **Протокол Huami** | `platform.huami` | Общий, за антикоррупционным слоем | Байты, шифрование, UUID, команды Mi Band 6 |
 | *Реабилитация* (план) | `features.rehab` | Основной | Целевые зоны пульса, тренировки, предупреждения |
-| *Обмен с клиникой* (план) | `features.clinic` | Поддерживающий | Передача данных врачу |
+| **Обмен с клиникой** | `features.clinic` | Поддерживающий | Регистрация телефона на сервере клиники, отправка истории и «пульса сейчас» врачу (демо — через ngrok, сервер — `../backend`) |
 
 Протокол Huami — чужая модель (байты, коды команд, «kind=115»). Он **никогда не
 проникает** в контексты `features.*`: адаптер в `platform.huami` переводит байты в
@@ -49,6 +49,7 @@ ru.kardiomonitor/
     huami/                    #   Протокол Mi Band 6: Auth2021, EcdhB163, Chunked*, MiBand6;
                               #   ACL-адаптер HuamiBand (реализует BandLink и ActivitySource)
     db/                       #   KardioDatabase: SQLiteOpenHelper, миграции схемы
+    http/                     #   JsonHttpClient — JSON по HTTP без библиотек (ADR-0006), HttpProblemException
     ui/                       #   Тема, карточки (SectionCard, StatTile), графики (без бизнес-логики)
   features/
     band/                     # Контекст «Браслет»
@@ -71,6 +72,13 @@ ru.kardiomonitor/
       liveheartrate/          #   Слайс: пульс сейчас
       stepstoday/             #   Слайс: шаги за сегодня с браслета (в карточке подключения)
       dailysummary/           #   Слайс: итоги дня, графики, навигация по дням
+    clinic/                   # Контекст «Обмен с клиникой»
+      domain/                 #   ServerAddress, PatientName, UploadToken, ServerRegistration, MinuteReport,
+                              #   LiveHeartRateReport, UploadReceipt; порты ClinicServer, ServerRegistrationRepository
+      data/                   #   HttpClinicServer + ClinicJson (контракт API v1), SharedPreferencesServerRegistrationRepository
+      registration/           #   Слайс: регистрация на сервере по адресу и имени (ServerRegistrationSection)
+      minuteupload/           #   Слайс: отправка новых минут после каждого пополнения истории (MinuteUploader + секция)
+      liveheartrateshare/     #   Слайс: отправка «пульса сейчас» во время измерения (LiveHeartRateSharing)
 ```
 
 Браслет виден контекстам через порты на их языке: `BandLink` (контекст «Браслет») и
@@ -82,6 +90,15 @@ ru.kardiomonitor/
 - непрерывные потоки («пульс сейчас», шаги сегодня) — пока `BandConnection.state` подключён,
   **не** внутри `withSession` (иначе они держали бы очередь и блокировали синхронизацию);
   «пульс сейчас» оборачивается в `holdOpen`, чтобы свёрнутое приложение не закрыло соединение.
+
+Обмен с клиникой видит мониторинг через доменные типы и события, на своём языке:
+
+- слайс `minuteupload` подписан на `ActivityHistory.changes` («история пополнилась» — синхронизация
+  с экрана и из фона) и переводит `ActivityMinute` в `MinuteReport` — язык API сервера;
+- слайс `liveheartrateshare` подписан на `LiveHeartRateFeed` («пульс сейчас измерен»): значения
+  публикует слайс `liveheartrate`, второе измерение не запускается;
+- домен и `data` клиники не импортируют чужой домен (правила ниже), поэтому у клиники свои
+  типы того, что уходит на сервер; перевод — в слайсах. Контракт — `backend/docs/api-contract.md`.
 
 Тесты лежат в `src/test/java/ru/kardiomonitor/<тот же путь>` — рядом с кодом слайса
 по пакету.
@@ -125,7 +142,7 @@ app ──► features.*.<slice> ──► features.*.domain ◄── features.
 | Слайс `features.X.<slice>` | домен своего контекста, `features.Y.api`, `features.Y.domain` (только типы), `platform.ui` | **другие слайсы**, любые `features.*.data` (реализации создаёт `app`), `platform.*` кроме `ui` |
 | `features.X.data` | домен своего контекста, `platform.db`, Android | слайсы, другие контексты, UI |
 | `features.X.api` | домен своего контекста | слайсы, `data`, `platform`, Android |
-| `platform.*` | Android, библиотеки, доменные типы (только в ACL-адаптере `platform.huami`) | слайсы |
+| `platform.*` | Android, библиотеки, доменные типы (только в ACL-адаптере `platform.huami`); `platform.http` — без доменных типов | слайсы |
 | `app` | всё — это композиционный корень | — |
 
 Ключевые следствия:

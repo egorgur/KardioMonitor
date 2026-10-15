@@ -17,6 +17,7 @@
 - [ADR-0003](adr/0003-single-band-connection.md) — одно соединение с браслетом на всё приложение
 - [ADR-0004](adr/0004-manual-di.md) — ручное внедрение зависимостей
 - [ADR-0005](adr/0005-architecture-tests-without-library.md) — архитектурные тесты на JUnit без библиотеки
+- [ADR-0006](adr/0006-http-without-library.md) — обмен с сервером: HttpURLConnection и org.json без библиотек
 
 ## Источники правил
 

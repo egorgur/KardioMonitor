@@ -31,6 +31,9 @@ Vertical Slice Architecture + DDD: код по контекстам (`features.b
 - Домен (`features.*.domain`) — чистый Kotlin: без `android.*`, Compose и `platform.*`.
 - Имена — из глоссария [docs/domain-model.md](docs/domain-model.md). Нет термина —
   добавить в глоссарий. Без суффиксов `Manager`/`Helper`/`Util`.
+- Контекст `features.clinic` — отправка данных на сервер клиники (`../backend`, для демо — ngrok):
+  HTTP — только `platform.http.JsonHttpClient` ([ADR-0006](docs/adr/0006-http-without-library.md)),
+  контракт — `../backend/docs/api-contract.md`. Токен загрузки не логировать.
 - Миграция прототипа со слоёв на эту структуру завершена (architecture.md). Слоёв
   `ble/`, `data/`, `ui/` больше нет — не создавать их заново.
 

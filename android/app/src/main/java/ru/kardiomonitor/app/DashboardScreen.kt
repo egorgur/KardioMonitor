@@ -11,6 +11,8 @@ import androidx.compose.ui.unit.dp
 import ru.kardiomonitor.features.band.connection.ConnectionSection
 import ru.kardiomonitor.features.band.measurementinterval.MeasurementIntervalSection
 import ru.kardiomonitor.features.band.pairing.ChangeBandButton
+import ru.kardiomonitor.features.clinic.minuteupload.MinuteUploadSection
+import ru.kardiomonitor.features.clinic.registration.ServerRegistrationSection
 import ru.kardiomonitor.features.monitoring.dailysummary.DailySummarySection
 import ru.kardiomonitor.features.monitoring.historysync.HistorySyncSection
 import ru.kardiomonitor.features.monitoring.liveheartrate.LiveHeartRateSection
@@ -29,9 +31,11 @@ fun DashboardScreen(container: AppContainer, modifier: Modifier = Modifier) {
     ) {
         ConnectionSection(connection, container.bandRepository) { StepsTodaySection(connection, source) }
         HistorySyncSection(connection, source, container.activityHistory, container.syncSettings)
-        LiveHeartRateSection(connection, source)
+        LiveHeartRateSection(connection, source, container.liveHeartRateFeed)
         MeasurementIntervalSection(container.bandRepository, connection)
         DailySummarySection(container.activityHistory)
+        ServerRegistrationSection(container.serverRegistrations, container.clinicServer)
+        MinuteUploadSection(container.minuteUploader)
         ChangeBandButton(container.bandRepository, connection)
     }
 }

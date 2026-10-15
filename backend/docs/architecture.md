@@ -10,13 +10,11 @@
 Бэкенд развивается в основном ИИ-агентом. Агенту, как и новому разработчику, нужно:
 
 1. **Быстро найти всё, что относится к задаче.** Сценарий «принять минуты с телефона»
-   лежит в одной папке: эндпоинт, схемы запроса и ответа, сценарий. Не нужно собирать его
-   из `routers/`, `schemas/`, `services/`, `crud/`.
-2. **Менять одно, не ломая другое.** Слайсы не импортируют друг друга, поэтому правка
-   одного эндпоинта не задевает соседние.
+   лежит в одной папке: эндпоинт, схемы запроса и ответа, сценарий.
+2. **Менять одно, не ломая другое.** Слайсы не импортируют друг друга (проверяет
+   import-linter), поэтому правка одного эндпоинта не задевает соседние.
 3. **Говорить на языке предметной области.** Имена совпадают с терминами врача и
-   Android-приложения: `ActivityMinute`, `HeartRate`, `DailySummary`, а не `Record`,
-   `Item`, `DataService`.
+   Android-приложения: `ActivityMinute`, `HeartRate`, `DailySummary`, а не `Record`, `DataService`.
 
 ## Основное правило
 
@@ -29,83 +27,87 @@
 
 | Контекст | Пакет | Роль | Что внутри |
 |---|---|---|---|
-| **Мониторинг** | `features.monitoring` | Основной (core) | Приём минут активности с телефона, хранение истории, итоги дня, просмотр истории клиникой |
-| **Пациенты** | `features.patients` | Поддерживающий | Пациент, выданный ему браслет, телефон пациента и его токен загрузки, журнал заряда браслета |
-| *Доступ* (план) | `features.access` | Общий (generic) | Сотрудники клиники, вход, роли. До появления — см. открытые вопросы в [domain-model.md](domain-model.md) |
-| *Реабилитация* (план) | `features.rehab` | Основной | Целевые зоны пульса, тренировки, предупреждения. Термины согласовать с врачом до кода |
+| **Мониторинг** | `features.monitoring` | Основной (core) | Минуты активности, «пульс сейчас», итоги дня, день пациента, обзор пациентов для панели |
+| **Пациенты** | `features.patients` | Поддерживающий | Пациент, регистрация телефона, токен загрузки, «текущий пациент» по токену |
+| *Доступ* (план) | `features.access` | Общий (generic) | Сотрудники клиники, вход, роли. Пока — ключ панели (`platform.web.dashboard_access`) |
+| *Реабилитация* (план) | `features.rehab` | Основной | Целевые зоны пульса, тренировки. Термины согласовать с врачом до кода |
 
 Границы и термины совпадают с Android-приложением ([android/docs/architecture.md](../../android/docs/architecture.md)):
 `ActivityMinute` на телефоне и на сервере — одно понятие с одними правилами. Протокол
-браслета (байты, коды команд) сервер **не знает**: его переводит в доменные типы ACL на
-телефоне. Внешний мир для сервера — это JSON API (см. [api-contract.md](api-contract.md)):
-JSON-схемы Pydantic живут в слайсах и переводятся в доменные типы на границе.
+браслета сервер **не знает**: его переводит в доменные типы ACL на телефоне. Внешний мир
+сервера — JSON API ([api-contract.md](api-contract.md)): схемы Pydantic живут в слайсах и
+переводятся в доменные типы на границе.
 
 ## Структура пакетов
 
 ```
 backend/
-  pyproject.toml               # зависимости, настройки ruff, mypy, pytest, import-linter
+  pyproject.toml               # зависимости; ruff, mypy, pytest, контракты import-linter
   uv.lock                      # зафиксированные версии (коммитится)
-  alembic.ini
-  migrations/                  # Alembic: env.py, versions/ГГГГ-ММ-ДД_<что>.py
-  compose.yaml                 # PostgreSQL для разработки и тестов
+  scripts/check.sh             # полная проверка; simulate_phone.py — имитация телефона
   src/kardiomonitor/
+    shared_kernel.py           # Общее ядро: DomainRuleViolation, Clock, Transaction. Расширять — через ADR
     app/                       # Композиционный корень
-      main.py                  #   create_app(settings) → FastAPI: lifespan, роутеры, обработчики ошибок
+      main.py                  #   create_app(settings, *overrides): контейнер dishka, lifespan, панель
+      provider.py              #   AppProvider: Settings, Clock, DashboardAccessPolicy
       settings.py              #   Settings (pydantic-settings), префикс KARDIO_
       routers.py               #   подключение router каждого слайса
-      errors.py                #   исключения → ответ application/problem+json
-      db_metadata.py           #   импорт таблиц всех контекстов — для Alembic
-    shared_kernel.py           # Общее ядро: DomainRuleViolation. Расширять — только через ADR
+      errors.py                #   исключения → application/problem+json
+      db_metadata.py           #   таблицы всех контекстов — для create_all
+      export_openapi.py        #   снимок OpenAPI для tests/contract
     platform/                  # Сквозная техника без бизнес-понятий
-      db/                      #   engine, sessionmaker, Base с naming convention, DbSession
-      web/                     #   ApiModel (база схем), ProblemDetail, middleware request id
-      security/                #   хеширование и сравнение токенов
+      clock.py                 #   SystemClock
+      db/                      #   Base, UtcDateTime; DatabaseProvider: engine, сессия, Transaction
+      web/                     #   ApiModel, UtcDatetime, ProblemDetail/ProblemError, request id, ключ панели
     features/
-      monitoring/              # Контекст «Мониторинг»
-        domain/                #   ActivityMinute, HeartRate, StepCount, Intensity, ActivityKind,
-                               #   MinuteBatch, DailySummary, UploadReceipt; порт ActivityHistory
-        data/                  #   tables.py (SQLAlchemy), SqlActivityHistory
-        dependencies.py        #   провайдеры портов для Depends: ActivityHistoryDep
-        minute_upload/         #   Слайс: приём пакета минут с телефона
-        upload_cursor/         #   Слайс: последняя полученная минута (откуда телефону продолжать)
-        daily_summary/         #   Слайс: итоги дня пациента для клиники
-        minute_history/        #   Слайс: минуты пациента за день для клиники
       patients/                # Контекст «Пациенты»
-        domain/                #   Patient, PatientId, BandAddress, PatientPhone, UploadToken,
-                               #   BatteryLevel; порты PatientRegistry, BatteryLog
-        data/                  #   tables.py, SqlPatientRegistry, SqlBatteryLog
-        dependencies.py        #   PatientRegistryDep, BatteryLogDep
-        api.py                 #   Опубликованный API контекста: CurrentPatient (по токену телефона)
-        enrollment/            #   Слайс: регистрация пациента, выдача браслета и токена телефона
-        battery_report/        #   Слайс: приём заряда браслета с телефона
-tests/                         # Зеркалит src/kardiomonitor: tests/features/monitoring/minute_upload/...
-  architecture/                #   проверки правил кода (см. «Защитные механизмы»)
+        domain/                #   Patient, PatientId, PatientName, UploadToken; порт PatientRegistry
+        data/                  #   tables.py, SqlPatientRegistry
+        provider.py            #   PatientsProvider: PatientRegistry, CurrentPatient (по токену)
+        api.py                 #   Опубликованный API: CurrentPatient, bearer_scheme, require_patient
+        registration/          #   Слайс: POST /register, GET /me
+      monitoring/              # Контекст «Мониторинг»
+        domain/                #   ActivityMinute, HeartRate, StepCount, Intensity, ActivityKind, MinuteBatch,
+                               #   DailySummary, PatientDay, LiveHeartRateReading; порты ActivityHistory,
+                               #   LiveHeartRateLog
+        data/                  #   tables.py, SqlActivityHistory, SqlLiveHeartRateLog
+        provider.py            #   MonitoringProvider
+        minute_upload/         #   Слайс: приём пакета минут с телефона
+        upload_cursor/         #   Слайс: последняя принятая минута (откуда телефону продолжать)
+        live_heart_rate/       #   Слайс: «пульс сейчас» — приём с телефона и окно для панели
+        patient_day/           #   Слайс: минуты и итоги дня пациента для панели
+        patient_overview/      #   Слайс: список пациентов и свежесть их данных для панели
+tests/                         # Зеркалит src/kardiomonitor; fakes.py, database.py — общие помощники
+  architecture/                #   правила кода, которых нет в ruff и import-linter
+  contract/                    #   снимок OpenAPI
 ```
 
-Тесты лежат в `tests/<тот же путь>`, фейки портов — в `tests/features/<контекст>/fakes.py`.
+Панель клиники — отдельное React-приложение в `../frontend`; сервер раздаёт её сборку
+(`KARDIO_FRONTEND_DIST`) с того же адреса, что и API.
 
 ## Анатомия слайса
 
 ```
 features/monitoring/minute_upload/
   __init__.py                  # from .router import router — единственный экспорт
-  router.py                    # ТОЧКА ВХОДА: APIRouter и эндпоинт(ы) слайса
+  router.py                    # ТОЧКА ВХОДА: APIRouter(route_class=DishkaRoute) и эндпоинт(ы)
   schemas.py                   # Pydantic-схемы запроса и ответа — контракт API этого слайса
   upload_minutes.py            # Сценарий (application service): оркестрация, без HTTP и SQL
 ```
 
 ```python
 # router.py
-router = APIRouter(prefix="/api/v1", tags=["Мониторинг"])
+router = APIRouter(prefix="/api/v1", tags=["Телефон"], route_class=DishkaRoute,
+                   dependencies=[Depends(bearer_scheme)])
 
 @router.post("/me/activity-minutes", summary="Принять минуты активности с телефона")
 async def receive_activity_minutes(
     body: MinuteBatchIn,
-    patient: CurrentPatient,
-    history: ActivityHistoryDep,
+    patient: FromDishka[CurrentPatient],
+    history: FromDishka[ActivityHistory],
+    transaction: FromDishka[Transaction],
 ) -> UploadReceiptOut:
-    receipt = await upload_minutes(patient.id, body.to_domain(), history=history)
+    receipt = await upload_minutes(patient.id, body.to_domain(), history=history, transaction=transaction)
     return UploadReceiptOut.from_domain(receipt)
 ```
 
@@ -113,55 +115,59 @@ async def receive_activity_minutes(
 
 1. **Одна точка входа.** Наружу слайс отдаёт только `router` (его подключает
    `app/routers.py`). Остальные модули слайса другие пакеты не импортируют.
-2. **Слайс владеет своими схемами.** `MinuteBatchIn`, `UploadReceiptOut` — только этого
-   слайса. Не переиспользуйте схему другого слайса, даже если поля совпадают: контракты
-   эндпоинтов должны меняться независимо.
-3. **Эндпоинт — тонкий.** Он переводит HTTP в доменные типы, вызывает сценарий и
-   переводит результат обратно. Никакого SQL, правил предметной области и `if` про
-   пульс в `router.py`.
-4. **Сценарий — тонкий.** Координирует шаги (проверить пакет → сохранить → вернуть
-   квитанцию). Правила (допустимый пульс, итоги дня, одна запись на минуту) живут в
-   доменных типах. Если в сценарии появляется `if` про предметную область — переносите
-   его в домен.
-5. **Начинайте просто.** Новый слайс может быть одним `router.py` со схемами и вызовом
-   репозитория. Отдельный модуль сценария появляется, когда логику нужно тестировать
-   без HTTP или когда `router.py` перерастает ~150 строк.
+2. **Слайс владеет своими схемами.** Не переиспользуйте схему другого слайса, даже если
+   поля совпадают: контракты эндпоинтов меняются независимо.
+3. **Эндпоинт — тонкий.** Переводит HTTP в доменные типы, вызывает сценарий, переводит
+   результат обратно. Никакого SQL и правил предметной области в `router.py`.
+4. **Сценарий — тонкий.** Координирует шаги и фиксирует транзакцию (ADR-0005). Правила
+   (допустимый пульс, одна запись на минуту, день пациента) живут в доменных типах.
+5. **Начинайте просто.** Слайс может быть одним `router.py` (как `upload_cursor`).
+   Отдельный модуль сценария — когда есть запись в базу или логику нужно тестировать без HTTP.
+
+## Внедрение зависимостей — dishka
+
+[ADR-0003](adr/0003-dependency-injection-dishka.md). Кратко:
+
+- Порт — `typing.Protocol` в `domain/`; реализация — в `data/`; связь — в `provider.py`
+  контекста: `provide(SqlActivityHistory, provides=ActivityHistory)`.
+- Времена жизни: `Scope.APP` — engine, sessionmaker, настройки, часы; `Scope.REQUEST` —
+  сессия, `Transaction`, репозитории, `CurrentPatient`.
+- В эндпоинте — `FromDishka[Порт]` (роутер с `route_class=DishkaRoute`). В сценарий
+  зависимости передаются явными именованными аргументами.
+- FastAPI `Depends` — только для HTTP-деталей: `bearer_scheme` (кнопка Authorize в `/docs`),
+  `require_dashboard_access` (заголовок `X-Dashboard-Key`).
+- Тест подменяет реализацию провайдером с `override=True` (`tests/fakes.py: replacing`).
 
 ## Правила зависимостей
 
 ```
 app ──► features.*.<slice> ──► features.*.domain ◄── features.*.data ──► platform.db
-              │        │              ▲    ▲
-              │        └─► features.X.dependencies ─► features.X.data
-              └──► features.Y.api ────┘    └── shared_kernel
-                   platform.web, platform.security
+ │            │                       ▲    ▲
+ │            └──► features.Y.api ────┘    └── shared_kernel
+ └──► features.*.provider ──► features.*.data         platform.web ◄── слайсы, api
 ```
 
 | Кто | Может импортировать | Не может |
 |---|---|---|
-| `features.*.domain` | стандартную библиотеку, `shared_kernel`, домен другого контекста (только типы, например `PatientId`) | `fastapi`, `starlette`, `pydantic`, `sqlalchemy`, `platform`, `app`, `data`, слайсы |
-| Слайс `features.X.<slice>` | домен своего контекста, `features.X.dependencies`, `features.Y.api`, `features.Y.domain` (типы), `platform.web`, `fastapi`, `pydantic` | **другие слайсы**, любые `features.*.data` напрямую, `sqlalchemy`, `app` |
-| `features.X.dependencies` | домен и `data` своего контекста, `platform.db` | слайсы, другие контексты |
-| `features.X.api` | домен и `dependencies` своего контекста, `platform` | слайсы, другие контексты |
+| `features.*.domain` | стандартную библиотеку, `shared_kernel`, домен другого контекста (только типы, например `PatientId`) | `fastapi`, `starlette`, `pydantic`, `sqlalchemy`, `dishka`, `platform`, `data`, `provider`, слайсы |
+| Слайс `features.X.<slice>` | домен своего и другого контекста (порты и типы), `features.Y.api`, `shared_kernel`, `platform.web`, `fastapi`, `pydantic`, `dishka` | **другие слайсы**, любые `data` и `provider`, `sqlalchemy`, `app` |
+| `features.X.provider` | домен, `data` и `api` своего контекста, `dishka`, `fastapi.Request` | слайсы, другие контексты |
+| `features.X.api` | домен своего контекста, `platform.web`, `fastapi` | слайсы, `data`, `provider`, другие контексты |
 | `features.X.data` | домен своего контекста, `platform.db`, `sqlalchemy` | слайсы, другие контексты, `fastapi`, `pydantic` |
 | `platform.*` | библиотеки, `shared_kernel` | `features`, `app` |
 | `app` | всё — это композиционный корень | — |
 
 Ключевые следствия:
 
-- **Слайсы не вызывают друг друга.** Если итоги дня должны учесть только что принятые
-  минуты, `daily_summary` читает `ActivityHistory`, а не вызывает `minute_upload`. Общее
-  правило двух слайсов — в доменном типе.
-- **Реализации портов знает только `dependencies.py` контекста** (и `app`). Слайс
-  объявляет зависимость от порта: `history: ActivityHistoryDep`, где
-  `ActivityHistoryDep = Annotated[ActivityHistory, Depends(activity_history)]`. Тест
-  подменяет реализацию через `app.dependency_overrides` ([ADR-0003](adr/0003-dependencies-via-depends.md)).
-- **Связь между контекстами — только через `api.py` и доменные типы.** Мониторинг узнаёт
-  пациента по токену телефона через `features.patients.api.CurrentPatient`, не зная,
-  как хранятся токены.
-- **Никакого глобального состояния**, кроме того, что `app` кладёт в `app.state` в
-  `lifespan` (engine, sessionmaker, HTTP-клиенты). Модули не создают подключения при
-  импорте; `settings` не импортируются глобально — значения приходят через `Depends`.
+- **Слайсы не вызывают друг друга.** Панель видит только что принятые минуты, потому что
+  `patient_day` читает `ActivityHistory`, а не потому что `minute_upload` его уведомляет.
+- **Реализации портов знают только `provider.py` контекста и `app`.**
+- **Связь между контекстами — через `api.py` и доменные типы.** Мониторинг узнаёт
+  пациента по токену через `features.patients.api.CurrentPatient`, не зная, как хранятся токены.
+  «Пациенты» не зависят от «Мониторинга» вовсе.
+- **Никакого глобального состояния.** Engine живёт в контейнере dishka (`Scope.APP`) и
+  закрывается в `lifespan`. Модули не создают подключения при импорте; `Settings`
+  приходят через контейнер.
 
 ## Доменная модель: тактические паттерны
 
@@ -171,82 +177,44 @@ app ──► features.*.<slice> ──► features.*.domain ◄── features.
 - **Value Object** — `@dataclass(frozen=True, slots=True)` с проверкой в `__post_init__`:
   невалидный объект создать нельзя (`HeartRate(bpm=300)` → `DomainRuleViolation`).
   Идентификаторы без правил — `NewType` над `UUID` (`PatientId`).
-- **Entity / Aggregate** — объект с идентичностью и инвариантами (`Patient`: браслет,
-  телефон). Изменения — только через методы корня агрегата.
-- **Repository** — `typing.Protocol` в `domain/`, реализация в `data/`. Только для
-  корней агрегатов и коллекций предметной области. Методы на языке предметной области:
-  `ActivityHistory.minutes_of(patient_id, day)`, а не `query(filters)`.
-- **Сценарий (application service)** — функция `async def upload_minutes(...)` в слайсе.
-  Зависимости — явными аргументами, не глобальными объектами.
-- **Без анемичной модели.** Если у доменного класса только поля, а логика в эндпоинте
-  или сценарии — это ошибка проектирования.
+- **Entity / Aggregate** — объект с идентичностью и инвариантами (`Patient`).
+  Создание и изменения — через методы корня (`Patient.register`).
+- **Repository** — `typing.Protocol` в `domain/`, реализация в `data/`. Методы на языке
+  предметной области: `ActivityHistory.minutes_between(patient_id, start, end)`.
+- **Сценарий** — функция `async def upload_minutes(...)` в слайсе.
+- **Без анемичной модели.** Если у доменного класса только поля, а логика в эндпоинте —
+  это ошибка проектирования.
 
 ## Хранение данных
 
-- PostgreSQL, SQLAlchemy 2.0 (async, `asyncpg`), миграции Alembic ([ADR-0002](adr/0002-tech-stack.md)).
-- Таблицы описываются в `features/<контекст>/data/tables.py`; ORM-объекты не выходят
-  из `data/` — репозиторий возвращает доменные типы.
-- Одна транзакция на запрос, фиксация **до** отправки ответа ([ADR-0005](adr/0005-transaction-per-request.md)).
-- Таблица принадлежит одному контексту. Другой контекст не читает её SQL-запросом, а
-  получает данные через `api.py` владельца.
+- SQLite для демо ([ADR-0007](adr/0007-sqlite-for-demo.md)), SQLAlchemy 2.0 async;
+  схема — `create_all` при запуске. PostgreSQL и Alembic — перед реальными пациентами.
+- Таблицы — в `features/<контекст>/data/tables.py`; ORM-объекты не выходят из `data/`.
+- Одна транзакция на запрос; фиксирует сценарий до ответа ([ADR-0005](adr/0005-transaction-per-request.md)).
+- Таблица принадлежит одному контексту. Другой контекст может сослаться на неё внешним
+  ключом (`activity_minutes.patient_id → patients.id`), но читает её только через `api.py`.
 
 ## Прагматизм
 
-- **Не строим абстракции заранее.** Общий код выносится, когда реальное дублирование
-  появилось в нескольких слайсах (ориентир — 3). Нет `BaseRepository[T]`,
-  `BaseService`, `UseCase[In, Out]`, `GenericCRUDRouter` «на будущее».
-- **DDD — там, где есть правила.** Проверка живости (`/health`), настройка логов,
-  middleware не моделируются агрегатами.
-- **Один пакет и один процесс, пока это работает.** Очередь задач, отдельный воркер,
-  кеш, микросервисы — только с ADR, когда появилась измеренная потребность.
+- **Не строим абстракции заранее.** Нет `BaseRepository[T]`, `BaseService`, `UseCase[In, Out]`,
+  `GenericCRUDRouter`. Общий код — когда дублирование стало реальным (ориентир — 3).
+- **DDD — там, где есть правила.** `/health`, middleware, логирование — без агрегатов.
+- **Один пакет и один процесс.** Очередь задач, кеш, отдельный воркер — только с ADR.
 
 ## Защитные механизмы
 
-Правила, которые можно проверить автоматически, должны проверяться автоматически —
-агент надёжнее следует падающей проверке, чем тексту ([ADR-0006](adr/0006-architecture-tests-import-linter.md)).
+Правила, которые можно проверить автоматически, проверяются автоматически
+([ADR-0006](adr/0006-architecture-tests-import-linter.md)). Всё входит в `scripts/check.sh`.
 
-- **import-linter** (`uv run lint-imports`) — таблица зависимостей выше в виде контрактов
-  в `pyproject.toml`:
-
-```toml
-[tool.importlinter]
-root_package = "kardiomonitor"
-include_external_packages = true
-
-[[tool.importlinter.contracts]]
-name = "Слои: app → features → platform → shared_kernel"
-type = "layers"
-layers = ["kardiomonitor.app", "kardiomonitor.features", "kardiomonitor.platform", "kardiomonitor.shared_kernel"]
-
-[[tool.importlinter.contracts]]
-name = "Домен — чистый Python"
-type = "forbidden"
-source_modules = ["kardiomonitor.features.monitoring.domain", "kardiomonitor.features.patients.domain"]
-forbidden_modules = ["fastapi", "starlette", "pydantic", "sqlalchemy", "kardiomonitor.platform",
-                     "kardiomonitor.features.monitoring.data", "kardiomonitor.features.patients.data"]
-
-[[tool.importlinter.contracts]]
-name = "Слайсы не импортируют друг друга"
-type = "independence"
-modules = ["kardiomonitor.features.monitoring.minute_upload", "kardiomonitor.features.monitoring.upload_cursor",
-           "kardiomonitor.features.monitoring.daily_summary", "kardiomonitor.features.monitoring.minute_history",
-           "kardiomonitor.features.patients.enrollment", "kardiomonitor.features.patients.battery_report"]
-
-[[tool.importlinter.contracts]]
-name = "Слайсы не трогают data и SQLAlchemy напрямую"
-type = "forbidden"
-source_modules = ["kardiomonitor.features.monitoring.minute_upload", "..."]   # все слайсы
-forbidden_modules = ["sqlalchemy", "kardiomonitor.features.monitoring.data", "kardiomonitor.features.patients.data"]
-allow_indirect_imports = true      # через dependencies.py — можно
-```
-
-  Новый слайс добавляется в контракты в той же задаче (skill `/new-slice` делает это сам).
-- **Правила кода** — `ruff check` (размер и сложность функций, async, даты без часового
-  пояса, `print`, `assert`), `mypy --strict`, тесты в `tests/architecture/` (длина файла,
-  пустые суффиксы имён, имена тестов). См. [coding-rules.md](coding-rules.md).
-- **Снимок OpenAPI** — тест сравнивает `app.openapi()` с зафиксированным
-  `tests/contract/openapi.json`: случайное изменение контракта с телефоном роняет тесты
-  ([api-contract.md](api-contract.md)).
+- **import-linter** (`uv run lint-imports`) — контракты в `pyproject.toml`: слои
+  `app → features → platform → shared_kernel`; домен без фреймворков; независимость слайсов;
+  слайсы без `data`, `provider` и `sqlalchemy`; «Пациенты» без «Мониторинга».
+  **Новый слайс добавляется в оба списка слайсов в той же задаче.**
+- **ruff** — размер и сложность функций, async, даты без пояса, `print`, `assert`.
+  **mypy --strict** — типы. **`tests/architecture/`** — длина модуля, пустые суффиксы,
+  имена модулей, русские имена тестов.
+- **Снимок OpenAPI** (`tests/contract/openapi.json`) — случайное изменение контракта с
+  телефоном роняет тесты ([api-contract.md](api-contract.md)).
 
 Падение называет правило и место. **Проверку не ослаблять, чтобы она прошла**: исправить
 код, а если неверно правило — сначала изменить этот документ с согласия человека.

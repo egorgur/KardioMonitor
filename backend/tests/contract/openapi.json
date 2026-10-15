@@ -256,11 +256,10 @@
         "description": "Пакет минут: 1–10 080 (7 суток).",
         "properties": {
           "minutes": {
+            "description": "1–10080 минут, без повторов started_at",
             "items": {
               "$ref": "#/components/schemas/ActivityMinuteIn"
             },
-            "maxItems": 10080,
-            "minItems": 1,
             "title": "Minutes",
             "type": "array"
           }

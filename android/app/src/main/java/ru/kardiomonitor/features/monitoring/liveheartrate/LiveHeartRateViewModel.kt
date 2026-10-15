@@ -14,7 +14,10 @@ import kotlinx.coroutines.launch
 import ru.kardiomonitor.features.band.api.BandConnection
 import ru.kardiomonitor.features.monitoring.domain.ActivitySource
 import ru.kardiomonitor.features.monitoring.domain.HeartRate
+import ru.kardiomonitor.features.monitoring.domain.LiveHeartRateFeed
+import ru.kardiomonitor.features.monitoring.domain.LiveHeartRateReading
 import java.io.IOException
+import java.time.Clock
 
 /** Состояние секции «Пульс сейчас». */
 internal data class LiveHeartRateUiState(
@@ -35,6 +38,8 @@ internal data class LiveHeartRateUiState(
 internal class LiveHeartRateViewModel(
     private val connection: BandConnection,
     private val source: ActivitySource,
+    private val feed: LiveHeartRateFeed,
+    private val clock: Clock = Clock.systemUTC(),
 ) : ViewModel() {
     private val measurement = MutableStateFlow(LiveHeartRateUiState())
     private var job: Job? = null
@@ -60,7 +65,11 @@ internal class LiveHeartRateViewModel(
             try {
                 // Пока идёт измерение, свёрнутое приложение не закрывает соединение (тренировка с выключенным экраном).
                 connection.holdOpen {
-                    source.liveHeartRate().collect { heartRate -> measurement.update { it.copy(heartRate = heartRate) } }
+                    source.liveHeartRate().collect { heartRate ->
+                        measurement.update { it.copy(heartRate = heartRate) }
+                        // Событие «пульс сейчас измерен» — для передачи врачу (контекст clinic)
+                        heartRate?.let { feed.publish(LiveHeartRateReading(clock.instant(), it)) }
+                    }
                 }
             } catch (e: IOException) {
                 Log.w(TAG, "измерение пульса прервано", e)

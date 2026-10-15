@@ -1,124 +1,148 @@
 # Контракт HTTP API
 
 Знание о контракте между сервером и его клиентами, которое нельзя безопасно менять «по
-ходу». Главный клиент — Android-приложение на телефоне пациента. Обновить его на всех
-телефонах одновременно нельзя: **старые версии приложения продолжают работать с новым
-сервером**. Поэтому контракт меняется только по правилам этого документа.
+ходу». Клиенты: Android-приложение на телефоне пациента и панель клиники (`../frontend`).
+Приложение нельзя обновить на всех телефонах одновременно: **старые версии продолжают
+работать с новым сервером**. Поэтому контракт меняется только по правилам этого документа.
 
-Источник истины о полях — OpenAPI, который генерирует FastAPI (`/openapi.json`,
-Swagger UI — `/docs`). Зафиксированный снимок — `tests/contract/openapi.json`.
-
-> Статус: черновик v1. Эндпоинты ниже — целевые; появляются вместе со слайсами.
+Источник истины о полях — OpenAPI, который генерирует FastAPI (`/openapi.json`, Swagger UI —
+`/docs`). Зафиксированный снимок — `tests/contract/openapi.json`. Клиент на Android —
+`android/.../features/clinic/data/ClinicJson.kt` (тест `ClinicJsonTest`).
 
 ## Общие правила
 
 | Правило | Значение |
 |---|---|
-| Версия | В пути: `/api/v1/...`. Служебные: `/health`, `/health/ready` — без версии |
+| Версия | В пути: `/api/v1/...`. Служебное: `/health` — без версии |
 | Формат | JSON, UTF-8. Имена полей — `snake_case` |
-| Время | ISO 8601 **с часовым поясом**: `2026-10-15T08:31:00+07:00`. Без пояса — `422`. В ответах — UTC с `Z` |
-| Дата дня | `YYYY-MM-DD`, день в часовом поясе пациента |
+| Время в запросах | ISO 8601 **с часовым поясом**: `2026-10-15T08:31:00+07:00` или `…Z`. Без пояса — `422` |
+| Время в ответах | Всегда UTC с `Z` (`UtcDatetime` в `platform.web`) |
+| Дата дня | `YYYY-MM-DD`, день **в часовом поясе пациента** |
 | Идентификаторы | UUID строкой |
-| Аутентификация телефона | `Authorization: Bearer <токен загрузки>` |
+| Телефон | `Authorization: Bearer <токен загрузки>` (выдаётся при регистрации) |
+| Панель | `X-Dashboard-Key: <ключ>`, если на сервере задан `KARDIO_DASHBOARD_KEY`; иначе без заголовка |
 | Трассировка | Каждый ответ содержит `X-Request-ID`; клиент может прислать свой |
-| Неизвестные поля | В запросе — `422` (`extra="forbid"`): сервер обновляется раньше приложения. В ответе клиент **обязан игнорировать** незнакомые поля (`ignoreUnknownKeys = true` в Android) |
-| Отсутствие значения | `null` (например, `heart_rate: null` — замера нет), а не пропуск поля и не `0` |
+| Неизвестные поля | В запросе — `422` (`extra="forbid"`): сервер обновляется раньше приложения. В ответе клиент **обязан игнорировать** незнакомые поля |
+| Отсутствие значения | `null` (`heart_rate: null` — замера нет), а не пропуск поля и не `0` |
+| ngrok | Телефон шлёт `ngrok-skip-browser-warning: 1` — иначе бесплатный план может вернуть HTML-предупреждение |
 
 ## Ошибки — RFC 9457 (`application/problem+json`)
 
 ```json
 {
   "type": "/problems/minute-batch-too-large",
-  "title": "Слишком большой пакет минут",
+  "title": "Нарушено правило данных",
   "status": 422,
-  "detail": "В пакете 12000 минут, допустимо не больше 10080",
+  "detail": "в пакете 12000 минут, допустимо не больше 10080",
   "code": "minute_batch_too_large",
   "request_id": "6f1c…"
 }
 ```
 
-- `code` — стабильный машинный код; Android решает, что делать, **по `code`**, а не по
-  тексту. Коды не переименовываются.
-- `detail` — по-русски, для журнала и поддержки; не содержит данных пациента.
-- Ошибки валидации Pydantic тоже приходят в этом формате (`code: "invalid_request"`,
-  поле `errors` со списком полей), а не в стандартном формате FastAPI.
+- `code` — стабильный машинный код; клиент решает, что делать, **по `code`**. Коды не переименовываются.
+- `detail` — по-русски, для журнала и экрана; не содержит данных пациента.
+- Ошибки валидации Pydantic — тоже в этом формате: `code: "invalid_request"` и поле `errors`
+  (`loc`, `msg`, `type`).
 
 | Статус | Когда | `code` |
 |---|---|---|
-| 401 | Нет токена, неверный или отозванный токен | `unauthorized` |
-| 403 | Токен действителен, но действие не разрешено | `forbidden` |
-| 404 | Пациент или ресурс не найден | `<что>_not_found` |
-| 409 | Конфликт состояния (телефон уже зарегистрирован и т. п.) | по ситуации |
-| 413 | Тело запроса больше лимита сервера | `payload_too_large` |
-| 422 | Неверный формат или нарушено правило предметной области | `invalid_request`, `<правило>` |
+| 401 | Телефон: нет токена или сервер его не знает | `unauthorized` |
+| 401 | Панель: нет или неверный ключ панели | `dashboard_key_required` |
+| 404 | Пациент не найден | `patient_not_found` |
+| 422 | Неверный формат запроса | `invalid_request` |
+| 422 | Нарушено правило предметной области | `heart_rate_out_of_range`, `minute_not_aligned`, `duplicate_minute`, `empty_minute_batch`, `minute_batch_too_large`, `naive_datetime`, `invalid_patient_name`, `unknown_time_zone`, `kind_code_out_of_range`, `negative_steps`, `intensity_out_of_range` |
 | 500 | Ошибка сервера. Трассировка не раскрывается | `internal_error` |
 
-Клиент повторяет запрос при сетевой ошибке, `5xx` и `429`; при `4xx` — не повторяет.
+Клиент повторяет запрос при сетевой ошибке и `5xx`; при `4xx` — не повторяет. На `401`
+телефон предлагает зарегистрироваться заново (сервер мог быть пересоздан).
 
-## Эндпоинты телефона (v1)
+## Телефон (v1)
+
+### `POST /api/v1/register` — регистрация
+
+Слайс `patients/registration`. Без авторизации.
+
+```json
+{ "name": "Иван П.", "time_zone": "Asia/Novosibirsk" }
+```
+
+`name` — 1–100 знаков; `time_zone` — IANA-имя часового пояса телефона (по нему считаются
+дни пациента). Ответ `201`; **токен показывается один раз**, сервер хранит только его отпечаток:
+
+```json
+{ "patient_id": "72f4…", "name": "Иван П.", "time_zone": "Asia/Novosibirsk", "token": "…" }
+```
+
+### `GET /api/v1/me` — проверка токена
+
+`200 { "patient_id", "name", "time_zone" }` или `401`.
 
 ### `POST /api/v1/me/activity-minutes` — принять минуты активности
 
-Слайс `monitoring/minute_upload`. **Идемпотентно**: повтор того же пакета ничего не
-меняет, повтор минуты с другими данными перезаписывает её. Телефон может безопасно
-повторять запрос после обрыва связи.
+Слайс `monitoring/minute_upload`. **Идемпотентно**: повтор того же пакета ничего не меняет,
+повтор минуты с другими данными перезаписывает её. Транзакция фиксируется до ответа:
+получив `200`, телефон может не повторять пакет.
 
 ```json
 {
   "minutes": [
-    {
-      "started_at": "2026-10-15T08:31:00+07:00",
-      "steps": 54,
-      "heart_rate": 92,
-      "kind": "other",
-      "raw_kind_code": 80,
-      "intensity": 37
-    }
+    { "started_at": "2026-10-15T03:01:00Z", "steps": 54, "heart_rate": 92,
+      "kind": "other", "kind_code": 80, "intensity": 37 },
+    { "started_at": "2026-10-15T03:02:00Z", "steps": 0, "heart_rate": null,
+      "kind": "not_worn", "kind_code": null, "intensity": 0 }
   ]
 }
 ```
 
 | Поле | Тип | Правила |
 |---|---|---|
-| `started_at` | время с поясом | Секунды = 0; уникально в пакете |
+| `started_at` | время с поясом | Секунды и доли = 0; уникально в пакете |
 | `steps` | int | ≥ 0 |
 | `heart_rate` | int \| null | 11–249 или `null` (замера нет) |
 | `kind` | `not_worn` \| `charging` \| `sleep` \| `other` | Расшифровано телефоном |
-| `raw_kind_code` | int | 0–255, исходный код браслета |
-| `intensity` | int | 0–255 |
+| `kind_code` | int \| null | 0–255 — исходный код браслета для `other` (не расшифрован); для остальных `null`. Необязательное |
+| `intensity` | int | 0–255, сырое значение браслета |
 
-Пакет: 1–10 080 минут (7 суток). Ответ `200`:
+Пакет: 1–10 080 минут (7 суток); телефон шлёт по 1 440. Ответ `200`:
 
 ```json
-{ "received": 30, "new": 28, "last_minute_started_at": "2026-10-15T01:31:00Z" }
+{ "received": 30, "new": 28, "last_minute_started_at": "2026-10-15T03:31:00Z" }
 ```
 
-### `GET /api/v1/me/activity-minutes/last` — откуда продолжать выгрузку
+### `GET /api/v1/me/activity-minutes/last` — откуда продолжать
 
-Слайс `monitoring/upload_cursor`. Ответ `200`: `{ "started_at": "…Z" }` или
-`{ "started_at": null }`, если минут пациента ещё нет.
+Слайс `monitoring/upload_cursor`. `200 { "started_at": "…Z" }` или `{ "started_at": null }`,
+если минут пациента ещё нет. Телефон отправляет минуты, начавшиеся позже.
 
-### `POST /api/v1/me/battery-readings` — заряд браслета
+### `POST /api/v1/me/live-heart-rate` — значение «пульса сейчас»
 
-Слайс `patients/battery_report`. Тело: `{ "measured_at": "…+07:00", "level_percent": 81 }`.
-Идемпотентно по `measured_at`. Ответ `204`.
+Слайс `monitoring/live_heart_rate`. Тело: `{ "measured_at": "…Z", "heart_rate": 88 }`
+(11–249). Идемпотентно по `measured_at`. Ответ `204`. Телефон шлёт значения, пока идёт
+измерение (раз в 2–3 с); пропуски при плохой сети допустимы.
 
-## Эндпоинты клиники (v1, план — после решения о входе сотрудников)
+## Панель клиники (v1)
 
-| Метод и путь | Слайс | Назначение |
+Защищены ключом панели, если он задан (это защита демо, а не вход сотрудников — см.
+открытые вопросы в [domain-model.md](domain-model.md)).
+
+| Метод и путь | Слайс | Ответ |
 |---|---|---|
-| `POST /api/v1/patients` | `patients/enrollment` | Зарегистрировать пациента (код клиники, часовой пояс) → `201` |
-| `PUT /api/v1/patients/{patient_id}/band` | `patients/enrollment` | Выдать браслет (`band_address`) |
-| `POST /api/v1/patients/{patient_id}/phone` | `patients/enrollment` | Зарегистрировать телефон → `201`, токен загрузки показывается **один раз** |
-| `GET /api/v1/patients/{patient_id}/daily-summaries?from=&to=` | `monitoring/daily_summary` | Итоги по дням за период (не больше 92 дней) |
-| `GET /api/v1/patients/{patient_id}/activity-minutes?day=` | `monitoring/minute_history` | Минуты пациента за день |
+| `GET /api/v1/patients` | `monitoring/patient_overview` | `[{patient_id, name, time_zone, registered_at, last_minute_started_at, live_heart_rate, live_heart_rate_measured_at}]` |
+| `GET /api/v1/patients/{patient_id}/days/{day}` | `monitoring/patient_day` | `{day, time_zone, summary: {recorded_minutes, steps, average_heart_rate, min_heart_rate, max_heart_rate, heart_rate_coverage_percent, not_worn_minutes}, minutes: [{started_at, steps, heart_rate, kind}]}` |
+| `GET /api/v1/patients/{patient_id}/live-heart-rate?window_seconds=300` | `monitoring/live_heart_rate` | `{window_seconds, readings: [{measured_at, heart_rate}]}`; окно 10–3600 с |
 
-## Служебные эндпоинты
+## Служебное
 
 | Путь | Назначение |
 |---|---|
-| `GET /health` | Процесс жив. Без обращения к базе. `200 {"status": "ok"}` |
-| `GET /health/ready` | Готов принимать запросы: база доступна. `503`, если нет |
+| `GET /health` | Процесс жив: `200 {"status": "ok"}` |
+| `GET /`, `/assets/…` | Собранная панель (`KARDIO_FRONTEND_DIST`), если она есть |
+| `GET /docs`, `/openapi.json` | Swagger UI и схема |
+
+## Планируется
+
+- `POST /api/v1/me/battery-readings` — заряд браслета (`patients/battery_report`).
+- Вход сотрудников клиники вместо ключа панели (контекст «Доступ»).
 
 ## Правила изменения контракта
 
@@ -140,8 +164,8 @@ Swagger UI — `/docs`). Зафиксированный снимок — `tests/
 Порядок любого изменения контракта:
 
 1. Изменение описано здесь (таблица полей, пример).
-2. Схемы в слайсе + тест слайса.
-3. Снимок `tests/contract/openapi.json` обновлён командой
+2. Схемы в слайсе + тест слайса; на стороне Android — `ClinicJson` и `ClinicJsonTest`.
+3. Снимок обновлён командой
    `uv run python -m kardiomonitor.app.export_openapi > tests/contract/openapi.json`
    и **дифф снимка прочитан**: в нём нет непредусмотренных изменений.
 4. Несовместимое изменение или вывод `v1` из работы — только с ADR и согласием человека,

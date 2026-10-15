@@ -19,4 +19,7 @@ interface ActivityHistory {
 
     /** Начало последней сохранённой минуты; null — история пуста. */
     suspend fun lastRecordedMinute(): Instant?
+
+    /** До [limit] минут, начавшихся позже [after] (null — с самой ранней), по порядку. */
+    suspend fun minutesAfter(after: Instant?, limit: Int): List<ActivityMinute>
 }

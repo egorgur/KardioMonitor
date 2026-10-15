@@ -26,4 +26,7 @@ class FakeActivityHistory(initial: List<ActivityMinute> = emptyList()) : Activit
         byStart.values.filter { it.start.atZone(ZoneOffset.UTC).toLocalDate() == day }
 
     override suspend fun lastRecordedMinute(): Instant? = byStart.keys.lastOrNull()
+
+    override suspend fun minutesAfter(after: Instant?, limit: Int): List<ActivityMinute> =
+        byStart.values.filter { after == null || it.start > after }.take(limit)
 }

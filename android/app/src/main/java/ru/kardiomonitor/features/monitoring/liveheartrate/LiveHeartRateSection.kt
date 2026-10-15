@@ -18,15 +18,21 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ru.kardiomonitor.features.band.api.BandConnection
 import ru.kardiomonitor.features.monitoring.domain.ActivitySource
+import ru.kardiomonitor.features.monitoring.domain.LiveHeartRateFeed
 import ru.kardiomonitor.platform.ui.SectionCard
 
 /**
  * Точка входа слайса «Пульс сейчас»: непрерывное измерение по запросу (для тренировок).
- * Видна, пока браслет подключён.
+ * Видна, пока браслет подключён. Значения публикуются в [LiveHeartRateFeed].
  */
 @Composable
-fun LiveHeartRateSection(connection: BandConnection, source: ActivitySource, modifier: Modifier = Modifier) {
-    val viewModel = viewModel { LiveHeartRateViewModel(connection, source) }
+fun LiveHeartRateSection(
+    connection: BandConnection,
+    source: ActivitySource,
+    feed: LiveHeartRateFeed,
+    modifier: Modifier = Modifier,
+) {
+    val viewModel = viewModel { LiveHeartRateViewModel(connection, source, feed) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     if (state.isAvailable) LiveHeartRateContent(state, onToggle = viewModel::toggle, modifier = modifier)
 }

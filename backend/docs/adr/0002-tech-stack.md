@@ -1,6 +1,7 @@
 # ADR-0002: Стек — FastAPI, Pydantic v2, SQLAlchemy 2 async, PostgreSQL, Alembic, uv
 
-- Статус: предложено
+- Статус: принято частично — для демо-прототипа база SQLite без Alembic (ADR-0007),
+  DI — dishka (ADR-0003); PostgreSQL и Alembic — перед реальными пациентами
 - Дата: 2026-10-16
 
 ## Контекст

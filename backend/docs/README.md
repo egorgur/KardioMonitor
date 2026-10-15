@@ -1,32 +1,33 @@
 # Документация бэкенда
 
 Бэкенд KardioMonitor — сервер на Python и FastAPI. Он принимает данные браслетов с
-телефонов пациентов (поминутную историю пульса и шагов, заряд браслета), хранит их и
-отдаёт клинике. С браслетом сервер напрямую не общается: браслет → Android-приложение
-по BLE → сервер по HTTPS.
+телефонов пациентов (поминутную историю пульса и шагов, «пульс сейчас»), хранит их и
+отдаёт панели клиники. С браслетом сервер напрямую не общается: браслет → Android-приложение
+по BLE → сервер по HTTPS (для демо — через ngrok).
 
-> Состояние: **кода ещё нет**, документы описывают целевую структуру и правила.
-> Каркас создаётся по ним. Решения со статусом «предложено» в [adr/](adr/) нужно
-> подтвердить у человека до того, как на них опирается код.
+> Состояние: **демо-прототип** — регистрация пациента по имени, приём истории и «пульса
+> сейчас», панель клиники (`../frontend`). База — SQLite ([ADR-0007](adr/0007-sqlite-for-demo.md)).
+> Как провести демонстрацию — [../README.md](../README.md).
 
 | Документ | Когда читать |
 |---|---|
-| [architecture.md](architecture.md) | Перед любой задачей, которая добавляет или переносит код: VSA + DDD, структура пакетов, правила зависимостей, анатомия слайса |
+| [architecture.md](architecture.md) | Перед любой задачей, которая добавляет или переносит код: VSA + DDD, структура пакетов, dishka, правила зависимостей, анатомия слайса |
 | [domain-model.md](domain-model.md) | Когда нужно назвать класс или понять термин: глоссарий, агрегаты, инварианты, открытые вопросы |
 | [coding-rules.md](coding-rules.md) | При написании кода: имена, размеры, типы, ошибки, async, FastAPI, Pydantic, SQLAlchemy, логирование |
-| [testing.md](testing.md) | При написании тестов и проверке: команды, уровни тестов, фейки, имена тестов |
-| [api-contract.md](api-contract.md) | При изменении эндпоинтов: контракт с Android-приложением, формат ошибок, совместимость |
+| [testing.md](testing.md) | При написании тестов и проверке: команды, уровни тестов, фейки через dishka, имена тестов |
+| [api-contract.md](api-contract.md) | При изменении эндпоинтов: контракт с Android-приложением и панелью, формат ошибок, совместимость |
 | [ai-agent-workflow.md](ai-agent-workflow.md) | Как ставить задачи агенту и как агенту их выполнять; skills, hooks |
 | [adr/](adr/) | Почему сделано именно так. Новое значимое решение — новый ADR по [шаблону](adr/0000-template.md) |
 
-## Принятые и предложенные решения
+## Решения
 
 - [ADR-0001](adr/0001-vertical-slices-and-ddd.md) — Vertical Slice Architecture + DDD (принято)
-- [ADR-0002](adr/0002-tech-stack.md) — стек: FastAPI, Pydantic v2, SQLAlchemy 2 async, PostgreSQL, Alembic, uv (предложено)
-- [ADR-0003](adr/0003-dependencies-via-depends.md) — внедрение зависимостей через `Depends`, без DI-фреймворка (предложено)
+- [ADR-0002](adr/0002-tech-stack.md) — стек: FastAPI, Pydantic v2, SQLAlchemy 2 async, uv; PostgreSQL и Alembic — перед реальными пациентами (принято частично)
+- [ADR-0003](adr/0003-dependency-injection-dishka.md) — внедрение зависимостей: dishka (принято)
 - [ADR-0004](adr/0004-pure-domain-pydantic-at-boundary.md) — домен на dataclasses, Pydantic только на границе API (предложено)
-- [ADR-0005](adr/0005-transaction-per-request.md) — одна транзакция на запрос, фиксация до отправки ответа (предложено)
-- [ADR-0006](adr/0006-architecture-tests-import-linter.md) — архитектурные тесты: import-linter + pytest (предложено)
+- [ADR-0005](adr/0005-transaction-per-request.md) — одна транзакция на запрос, фиксирует сценарий до ответа (принято)
+- [ADR-0006](adr/0006-architecture-tests-import-linter.md) — архитектурные проверки: import-linter + pytest (предложено)
+- [ADR-0007](adr/0007-sqlite-for-demo.md) — SQLite и схема без миграций для демо (принято)
 
 Общие для проекта решения — в [android/docs/adr/](../../android/docs/adr/): термины
 предметной области бэкенд берёт из [android/docs/domain-model.md](../../android/docs/domain-model.md).
@@ -35,8 +36,9 @@
 
 - [Claude Code: best practices](https://code.claude.com/docs/en/best-practices), [CLAUDE.md и rules](https://code.claude.com/docs/en/memory) — Anthropic
 - [FastAPI: документация](https://fastapi.tiangolo.com/) — разделы Bigger Applications, Dependencies
-  ([with yield и `scope`](https://fastapi.tiangolo.com/tutorial/dependencies/dependencies-with-yield/)),
+  ([with yield](https://fastapi.tiangolo.com/tutorial/dependencies/dependencies-with-yield/)),
   Lifespan Events, Settings, Testing; [release notes](https://fastapi.tiangolo.com/release-notes/)
+- [dishka: интеграция с FastAPI](https://dishka.readthedocs.io/en/stable/integrations/fastapi.html)
 - [zhanymkanov/fastapi-best-practices](https://github.com/zhanymkanov/fastapi-best-practices) — практики FastAPI из продакшена
 - [Architecture Patterns with Python (Cosmic Python)](https://www.cosmicpython.com/) — DDD, репозиторий, порты и адаптеры на Python
 - [Pydantic v2](https://docs.pydantic.dev/latest/), [pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/)
