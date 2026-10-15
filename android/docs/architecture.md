@@ -198,6 +198,6 @@ app ──► features.*.<slice> ──► features.*.domain ◄── features.
 1. ✅ Ввести доменные типы `monitoring/domain` (`HeartRate`, `ActivityMinute`, `ActivityKind`,
    `DailySummary`) с тестами; `DaySummary` в UI перевести на `DailySummary`.
 2. ✅ Перенести протокол в `platform/huami`, добавить ACL-адаптер, выдающий доменные типы.
-3. Ввести `AppContainer`, убрать `BandManager.get()`.
+3. ✅ Ввести `AppContainer`, убрать `BandManager.get()`.
 4. Разрезать `BandManager` и `MainViewModel` на слайсы по таблице, по одному слайсу за шаг.
    Когда `BandManager` исчезнет — убрать его из `LEGACY_NAMES` в `CodeRulesTest`.

@@ -21,7 +21,11 @@ import java.util.concurrent.TimeUnit
  * Фоновая синхронизация раз в 30 минут. Android может откладывать запуск в режиме
  * энергосбережения (Doze), поэтому интервал не строгий.
  */
-class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
+class SyncWorker(
+    context: Context,
+    params: WorkerParameters,
+    private val manager: BandManager,
+) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
         val config = BandConfig.load(applicationContext) ?: return Result.success()
@@ -31,7 +35,7 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         }
         return try {
             withResponseTimeout(SYNC_TIMEOUT_MS, "фоновая синхронизация") {
-                BandManager.get(applicationContext).backgroundSync(config)
+                manager.backgroundSync(config)
             }
             Result.success()
         } catch (e: CancellationException) {

@@ -6,7 +6,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -49,11 +48,11 @@ data class BandState(
 /**
  * Единственное соединение с браслетом на всё приложение. Браслет держит одно соединение,
  * поэтому экран и фоновая синхронизация работают через этот объект и не мешают друг другу:
- * подключение и синхронизация выполняются по очереди (sessionMutex).
+ * подключение и синхронизация выполняются по очереди (sessionMutex). Создаётся один раз —
+ * в AppContainer; [scope] — scope приложения.
  */
-class BandManager private constructor(private val context: Context) {
+class BandManager(private val context: Context, private val scope: CoroutineScope) {
     val store = SampleStore(context)
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val band = HuamiBand(context, scope)
     private val sessionMutex = Mutex()
 
@@ -262,13 +261,7 @@ class BandManager private constructor(private val context: Context) {
 
     fun dismissError() = _state.update { it.copy(error = null) }
 
-    companion object {
-        private const val TAG = "KardioBLE"
-        @Volatile private var instance: BandManager? = null
-
-        fun get(context: Context): BandManager =
-            instance ?: synchronized(this) {
-                instance ?: BandManager(context.applicationContext).also { instance = it }
-            }
+    private companion object {
+        const val TAG = "KardioBLE"
     }
 }

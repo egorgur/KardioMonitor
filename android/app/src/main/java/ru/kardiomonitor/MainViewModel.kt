@@ -27,9 +27,8 @@ data class UiState(
     val daySummary: DailySummary = DailySummary.of(emptyList()),
 )
 
-class MainViewModel(app: Application) : AndroidViewModel(app) {
+class MainViewModel(app: Application, private val manager: BandManager) : AndroidViewModel(app) {
     private val context: Context get() = getApplication()
-    private val manager = BandManager.get(app)
 
     private val _state = MutableStateFlow(
         UiState(config = BandConfig.load(app), backgroundSync = BandSettings.backgroundSyncEnabled(app))

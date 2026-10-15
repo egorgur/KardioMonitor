@@ -1,6 +1,6 @@
 # ADR-0004: Ручное внедрение зависимостей (AppContainer)
 
-- Статус: принято (переход к цели — шаг 3 миграции в architecture.md)
+- Статус: принято (внедрено шагом 3 миграции в architecture.md)
 - Дата: 2026-10-09
 
 ## Контекст
@@ -14,6 +14,10 @@
 Один `AppContainer`, создаваемый в `Application`, собирает инфраструктуру и
 репозитории и передаёт их через конструкторы в ViewModel-фабрики и Worker.
 Глобальные синглтоны (`getInstance()`) не используются.
+
+Worker-ы получают зависимости через `WorkerFactory` (`app/KardioWorkerFactory`), которую
+`KardioApplication` отдаёт WorkManager через `Configuration.Provider`. Поэтому стандартный
+`WorkManagerInitializer` удалён в манифесте.
 
 ## Последствия
 

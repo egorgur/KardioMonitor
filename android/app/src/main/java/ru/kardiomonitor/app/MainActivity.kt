@@ -1,4 +1,4 @@
-package ru.kardiomonitor
+package ru.kardiomonitor.app
 
 import android.Manifest
 import android.content.pm.PackageManager
@@ -10,6 +10,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
@@ -17,13 +19,21 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import ru.kardiomonitor.MainViewModel
 import ru.kardiomonitor.ui.DashboardActions
 import ru.kardiomonitor.ui.DashboardScreen
 import ru.kardiomonitor.ui.KardioTheme
 import ru.kardiomonitor.ui.SetupScreen
 
 class MainActivity : ComponentActivity() {
-    private val viewModel: MainViewModel by viewModels()
+    private val viewModel: MainViewModel by viewModels {
+        viewModelFactory {
+            initializer {
+                val app = application as KardioApplication
+                MainViewModel(app, app.container.bandManager)
+            }
+        }
+    }
 
     private val blePermissions =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
