@@ -1,0 +1,121 @@
+[project]
+name = "kardiomonitor-backend"
+version = "0.1.0"
+description = "Демо-сервер KardioMonitor: регистрация пациента и приём пульса и шагов с телефона"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "aiosqlite>=0.22.1",
+    "dishka>=1.10.1",
+    "fastapi>=0.121.1",
+    "pydantic-settings>=2.16.0",
+    "sqlalchemy[asyncio]>=2.0",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.9.7,<0.10"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "kardiomonitor"
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "import-linter>=2.15",
+    "mypy>=2.4.0",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "ruff>=0.17.1",
+]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "N", "UP", "B", "A", "C4", "C90", "SIM", "RET", "ARG", "PTH",
+          "ASYNC", "S", "T20", "ANN", "FBT", "DTZ", "ERA", "G", "BLE", "TRY", "PT", "PL", "RUF"]
+ignore = [
+    "RUF001", "RUF002", "RUF003",   # кириллица в строках и комментариях — норма проекта
+    "TRY003",                       # сообщение исключения на русском прямо в raise — норма проекта
+    "N818",                         # имена исключений — из глоссария (DomainRuleViolation)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "PLR2004", "PLC2401"]   # assert, числа в проверках, русские имена тестов
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.pylint]
+max-args = 6
+max-statements = 30
+max-nested-blocks = 3
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+plugins = ["pydantic.mypy"]
+mypy_path = "src"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+
+[tool.importlinter]
+root_package = "kardiomonitor"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Слои: app → features → platform → shared_kernel"
+type = "layers"
+layers = ["kardiomonitor.app", "kardiomonitor.features", "kardiomonitor.platform", "kardiomonitor.shared_kernel"]
+
+[[tool.importlinter.contracts]]
+name = "Домен — чистый Python (ADR-0004)"
+type = "forbidden"
+source_modules = ["kardiomonitor.features.monitoring.domain", "kardiomonitor.features.patients.domain"]
+forbidden_modules = [
+    "fastapi", "starlette", "pydantic", "sqlalchemy", "dishka", "kardiomonitor.platform",
+    "kardiomonitor.features.monitoring.data", "kardiomonitor.features.patients.data",
+    "kardiomonitor.features.monitoring.provider", "kardiomonitor.features.patients.provider",
+]
+
+[[tool.importlinter.contracts]]
+name = "Слайсы не импортируют друг друга"
+type = "independence"
+modules = [
+    "kardiomonitor.features.patients.registration",
+    "kardiomonitor.features.monitoring.minute_upload",
+    "kardiomonitor.features.monitoring.upload_cursor",
+    "kardiomonitor.features.monitoring.live_heart_rate",
+    "kardiomonitor.features.monitoring.patient_day",
+    "kardiomonitor.features.monitoring.patient_overview",
+]
+
+[[tool.importlinter.contracts]]
+name = "Слайсы видят порты, а не реализации: без data, provider и SQLAlchemy (ADR-0003)"
+type = "forbidden"
+source_modules = [
+    "kardiomonitor.features.patients.registration",
+    "kardiomonitor.features.monitoring.minute_upload",
+    "kardiomonitor.features.monitoring.upload_cursor",
+    "kardiomonitor.features.monitoring.live_heart_rate",
+    "kardiomonitor.features.monitoring.patient_day",
+    "kardiomonitor.features.monitoring.patient_overview",
+]
+forbidden_modules = [
+    "sqlalchemy",
+    "kardiomonitor.features.monitoring.data", "kardiomonitor.features.patients.data",
+    "kardiomonitor.features.monitoring.provider", "kardiomonitor.features.patients.provider",
+]
+
+[[tool.importlinter.contracts]]
+name = "Пациенты не зависят от Мониторинга"
+type = "forbidden"
+source_modules = ["kardiomonitor.features.patients"]
+forbidden_modules = ["kardiomonitor.features.monitoring"]

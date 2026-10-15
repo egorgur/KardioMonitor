@@ -1,0 +1,972 @@
+{
+  "components": {
+    "schemas": {
+      "ActivityKind": {
+        "description": "Тип активности за минуту. Коды браслета расшифровывает телефон.",
+        "enum": [
+          "not_worn",
+          "charging",
+          "sleep",
+          "other"
+        ],
+        "title": "ActivityKind",
+        "type": "string"
+      },
+      "ActivityMinuteIn": {
+        "additionalProperties": false,
+        "description": "Минута активности с телефона.",
+        "properties": {
+          "heart_rate": {
+            "anyOf": [
+              {
+                "maximum": 249.0,
+                "minimum": 11.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heart Rate"
+          },
+          "intensity": {
+            "maximum": 255.0,
+            "minimum": 0.0,
+            "title": "Intensity",
+            "type": "integer"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ActivityKind"
+          },
+          "kind_code": {
+            "anyOf": [
+              {
+                "maximum": 255.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind Code"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "steps": {
+            "minimum": 0.0,
+            "title": "Steps",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "started_at",
+          "steps",
+          "kind",
+          "intensity"
+        ],
+        "title": "ActivityMinuteIn",
+        "type": "object"
+      },
+      "DailySummaryOut": {
+        "additionalProperties": false,
+        "properties": {
+          "average_heart_rate": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Heart Rate"
+          },
+          "heart_rate_coverage_percent": {
+            "title": "Heart Rate Coverage Percent",
+            "type": "integer"
+          },
+          "max_heart_rate": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Heart Rate"
+          },
+          "min_heart_rate": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Heart Rate"
+          },
+          "not_worn_minutes": {
+            "title": "Not Worn Minutes",
+            "type": "integer"
+          },
+          "recorded_minutes": {
+            "title": "Recorded Minutes",
+            "type": "integer"
+          },
+          "steps": {
+            "title": "Steps",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "recorded_minutes",
+          "steps",
+          "average_heart_rate",
+          "min_heart_rate",
+          "max_heart_rate",
+          "heart_rate_coverage_percent",
+          "not_worn_minutes"
+        ],
+        "title": "DailySummaryOut",
+        "type": "object"
+      },
+      "DayMinuteOut": {
+        "additionalProperties": false,
+        "properties": {
+          "heart_rate": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heart Rate"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ActivityKind"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "steps": {
+            "title": "Steps",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "started_at",
+          "steps",
+          "heart_rate",
+          "kind"
+        ],
+        "title": "DayMinuteOut",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "LiveHeartRateIn": {
+        "additionalProperties": false,
+        "description": "Одно значение непрерывного измерения.",
+        "properties": {
+          "heart_rate": {
+            "maximum": 249.0,
+            "minimum": 11.0,
+            "title": "Heart Rate",
+            "type": "integer"
+          },
+          "measured_at": {
+            "format": "date-time",
+            "title": "Measured At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "measured_at",
+          "heart_rate"
+        ],
+        "title": "LiveHeartRateIn",
+        "type": "object"
+      },
+      "LiveHeartRateReadingOut": {
+        "additionalProperties": false,
+        "properties": {
+          "heart_rate": {
+            "title": "Heart Rate",
+            "type": "integer"
+          },
+          "measured_at": {
+            "format": "date-time",
+            "title": "Measured At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "measured_at",
+          "heart_rate"
+        ],
+        "title": "LiveHeartRateReadingOut",
+        "type": "object"
+      },
+      "LiveHeartRateWindowOut": {
+        "additionalProperties": false,
+        "description": "Замеры за последние `window_seconds` секунд, по порядку.",
+        "properties": {
+          "readings": {
+            "items": {
+              "$ref": "#/components/schemas/LiveHeartRateReadingOut"
+            },
+            "title": "Readings",
+            "type": "array"
+          },
+          "window_seconds": {
+            "title": "Window Seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "window_seconds",
+          "readings"
+        ],
+        "title": "LiveHeartRateWindowOut",
+        "type": "object"
+      },
+      "MinuteBatchIn": {
+        "additionalProperties": false,
+        "description": "Пакет минут: 1–10 080 (7 суток).",
+        "properties": {
+          "minutes": {
+            "items": {
+              "$ref": "#/components/schemas/ActivityMinuteIn"
+            },
+            "maxItems": 10080,
+            "minItems": 1,
+            "title": "Minutes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "minutes"
+        ],
+        "title": "MinuteBatchIn",
+        "type": "object"
+      },
+      "PatientDayOut": {
+        "additionalProperties": false,
+        "description": "День в часовом поясе пациента: итоги и минуты по порядку.",
+        "properties": {
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "minutes": {
+            "items": {
+              "$ref": "#/components/schemas/DayMinuteOut"
+            },
+            "title": "Minutes",
+            "type": "array"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/DailySummaryOut"
+          },
+          "time_zone": {
+            "title": "Time Zone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "day",
+          "time_zone",
+          "summary",
+          "minutes"
+        ],
+        "title": "PatientDayOut",
+        "type": "object"
+      },
+      "PatientOverviewOut": {
+        "additionalProperties": false,
+        "description": "Пациент и свежесть его данных.",
+        "properties": {
+          "last_minute_started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Minute Started At"
+          },
+          "live_heart_rate": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Live Heart Rate"
+          },
+          "live_heart_rate_measured_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Live Heart Rate Measured At"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "patient_id": {
+            "format": "uuid",
+            "title": "Patient Id",
+            "type": "string"
+          },
+          "registered_at": {
+            "format": "date-time",
+            "title": "Registered At",
+            "type": "string"
+          },
+          "time_zone": {
+            "title": "Time Zone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "patient_id",
+          "name",
+          "time_zone",
+          "registered_at",
+          "last_minute_started_at",
+          "live_heart_rate",
+          "live_heart_rate_measured_at"
+        ],
+        "title": "PatientOverviewOut",
+        "type": "object"
+      },
+      "PatientProfileOut": {
+        "additionalProperties": false,
+        "description": "Кем сервер считает владельца токена.",
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "patient_id": {
+            "format": "uuid",
+            "title": "Patient Id",
+            "type": "string"
+          },
+          "time_zone": {
+            "title": "Time Zone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "patient_id",
+          "name",
+          "time_zone"
+        ],
+        "title": "PatientProfileOut",
+        "type": "object"
+      },
+      "RegistrationIn": {
+        "additionalProperties": false,
+        "description": "Имя пациента и часовой пояс телефона.",
+        "properties": {
+          "name": {
+            "examples": [
+              "Иван П."
+            ],
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "time_zone": {
+            "examples": [
+              "Asia/Novosibirsk"
+            ],
+            "title": "Time Zone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "time_zone"
+        ],
+        "title": "RegistrationIn",
+        "type": "object"
+      },
+      "RegistrationOut": {
+        "additionalProperties": false,
+        "description": "Токен показывается один раз: телефон сохраняет его и шлёт в `Authorization: Bearer`.",
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "patient_id": {
+            "format": "uuid",
+            "title": "Patient Id",
+            "type": "string"
+          },
+          "time_zone": {
+            "title": "Time Zone",
+            "type": "string"
+          },
+          "token": {
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "patient_id",
+          "name",
+          "time_zone",
+          "token"
+        ],
+        "title": "RegistrationOut",
+        "type": "object"
+      },
+      "UploadCursorOut": {
+        "additionalProperties": false,
+        "description": "Начало последней принятой минуты; null — минут пациента ещё нет.",
+        "properties": {
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          }
+        },
+        "required": [
+          "started_at"
+        ],
+        "title": "UploadCursorOut",
+        "type": "object"
+      },
+      "UploadReceiptOut": {
+        "additionalProperties": false,
+        "description": "Квитанция: `last_minute_started_at` — откуда телефону продолжать.",
+        "properties": {
+          "last_minute_started_at": {
+            "format": "date-time",
+            "title": "Last Minute Started At",
+            "type": "string"
+          },
+          "new": {
+            "title": "New",
+            "type": "integer"
+          },
+          "received": {
+            "title": "Received",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "received",
+          "new",
+          "last_minute_started_at"
+        ],
+        "title": "UploadReceiptOut",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "description": "Токен загрузки, выданный при регистрации телефона",
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
+  "info": {
+    "summary": "Демо-сервер: пульс и шаги с браслета через телефон пациента",
+    "title": "KardioMonitor",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/me": {
+      "get": {
+        "description": "Проверка токена приложением: 200 — токен действителен, 401 — нет.",
+        "operationId": "get_profile_api_v1_me_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatientProfileOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Кому принадлежит токен",
+        "tags": [
+          "Пациенты"
+        ]
+      }
+    },
+    "/api/v1/me/activity-minutes": {
+      "post": {
+        "description": "Идемпотентно: телефон может повторять запрос после обрыва связи.",
+        "operationId": "receive_activity_minutes_api_v1_me_activity_minutes_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MinuteBatchIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadReceiptOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Принять минуты активности с телефона",
+        "tags": [
+          "Телефон"
+        ]
+      }
+    },
+    "/api/v1/me/activity-minutes/last": {
+      "get": {
+        "description": "Телефон отправляет минуты начиная со следующей после этой.",
+        "operationId": "get_upload_cursor_api_v1_me_activity_minutes_last_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadCursorOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Последняя принятая минута пациента",
+        "tags": [
+          "Телефон"
+        ]
+      }
+    },
+    "/api/v1/me/live-heart-rate": {
+      "post": {
+        "description": "Идемпотентно по `measured_at`.",
+        "operationId": "receive_live_heart_rate_api_v1_me_live_heart_rate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LiveHeartRateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Принять значение «пульса сейчас»",
+        "tags": [
+          "Телефон"
+        ]
+      }
+    },
+    "/api/v1/patients": {
+      "get": {
+        "description": "Для демо пациентов единицы: два запроса на пациента допустимы.",
+        "operationId": "list_patients_api_v1_patients_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Dashboard-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dashboard-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PatientOverviewOut"
+                  },
+                  "title": "Response List Patients Api V1 Patients Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Все пациенты и свежесть их данных",
+        "tags": [
+          "Панель клиники"
+        ]
+      }
+    },
+    "/api/v1/patients/{patient_id}/days/{day}": {
+      "get": {
+        "description": "`day` — календарный день в часовом поясе пациента.",
+        "operationId": "get_patient_day_api_v1_patients__patient_id__days__day__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "patient_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Patient Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "day",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "Day",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Dashboard-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dashboard-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatientDayOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Минуты и итоги дня пациента",
+        "tags": [
+          "Панель клиники"
+        ]
+      }
+    },
+    "/api/v1/patients/{patient_id}/live-heart-rate": {
+      "get": {
+        "description": "Панель опрашивает этот эндпоинт каждые несколько секунд.",
+        "operationId": "get_live_heart_rate_api_v1_patients__patient_id__live_heart_rate_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "patient_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Patient Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "window_seconds",
+            "required": false,
+            "schema": {
+              "default": 300,
+              "maximum": 3600,
+              "minimum": 10,
+              "title": "Window Seconds",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Dashboard-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dashboard-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveHeartRateWindowOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Пульс сейчас за последние секунды",
+        "tags": [
+          "Панель клиники"
+        ]
+      }
+    },
+    "/api/v1/register": {
+      "post": {
+        "description": "Создаёт пациента и выдаёт токен загрузки. Токен в ответе — единственный раз.",
+        "operationId": "register_api_v1_register_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegistrationIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistrationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Зарегистрировать пациента и его телефон",
+        "tags": [
+          "Пациенты"
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "_health_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response  Health Health Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Процесс жив",
+        "tags": [
+          "Служебное"
+        ]
+      }
+    }
+  }
+}
