@@ -26,12 +26,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material3.Switch
-import ru.kardiomonitor.Connection
 import ru.kardiomonitor.data.LastSync
 import java.time.Instant
 import java.time.ZoneId
 import ru.kardiomonitor.UiState
 import ru.kardiomonitor.data.BandSettings
+import ru.kardiomonitor.features.band.domain.ConnectionStage
 import ru.kardiomonitor.features.monitoring.domain.DailySummary
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -59,12 +59,12 @@ fun DashboardScreen(state: UiState, actions: DashboardActions, modifier: Modifie
     ) {
         state.band.error?.let { ErrorCard(it, actions.dismissError) }
         DeviceCard(state, actions)
-        if (state.band.connection == Connection.CONNECTED) LiveHeartRateCard(state, actions.toggleHeartRate)
+        if (state.band.connection == ConnectionStage.Connected) LiveHeartRateCard(state, actions.toggleHeartRate)
         HeartRateIntervalCard(state, actions.setHeartRateInterval)
         DayHeader(state.day, actions.showDay)
         DailySummaryCard(state.daySummary)
-        SectionCard("Пульс, уд/мин") { HeartRateChart(state.daySamples, state.day) }
-        SectionCard("Шаги по часам") { StepsChart(state.daySamples, state.day) }
+        SectionCard("Пульс, уд/мин") { HeartRateChart(state.dayMinutes, state.day) }
+        SectionCard("Шаги по часам") { StepsChart(state.dayMinutes, state.day) }
         TextButton(onClick = actions.forgetBand) { Text("Сменить браслет") }
     }
 }
@@ -96,21 +96,21 @@ private fun ErrorCard(message: String, onDismiss: () -> Unit) {
 @Composable
 private fun DeviceCard(state: UiState, actions: DashboardActions) {
     val status = when (state.band.connection) {
-        Connection.DISCONNECTED -> "Не подключён"
-        Connection.SEARCHING -> "Поиск браслета…"
-        Connection.CONNECTING -> "Подключение…"
-        Connection.AUTHENTICATING -> "Авторизация…"
-        Connection.CONNECTED -> "Подключён"
+        ConnectionStage.Disconnected -> "Не подключён"
+        ConnectionStage.Searching -> "Поиск браслета…"
+        ConnectionStage.Connecting -> "Подключение…"
+        ConnectionStage.Authenticating -> "Авторизация…"
+        ConnectionStage.Connected -> "Подключён"
     }
     SectionCard("Mi Smart Band 6") {
         Text("${state.config?.mac} · $status", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        if (state.band.connection == Connection.CONNECTED) {
+        if (state.band.connection == ConnectionStage.Connected) {
             Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                 StatTile("Батарея", state.band.battery?.let { "$it %" } ?: "—")
                 StatTile("Шагов сегодня", state.band.stepsToday?.toString() ?: "—")
             }
         }
-        if (state.band.background && state.band.connection != Connection.DISCONNECTED) {
+        if (state.band.background && state.band.connection != ConnectionStage.Disconnected) {
             Text("Идёт фоновая синхронизация", style = MaterialTheme.typography.bodySmall)
         }
         state.band.syncStatus?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
@@ -125,8 +125,8 @@ private fun DeviceCard(state: UiState, actions: DashboardActions) {
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             when (state.band.connection) {
-                Connection.DISCONNECTED -> Button(onClick = actions.connect) { Text("Подключить") }
-                Connection.CONNECTED -> {
+                ConnectionStage.Disconnected -> Button(onClick = actions.connect) { Text("Подключить") }
+                ConnectionStage.Connected -> {
                     Button(onClick = actions.sync, enabled = !state.band.syncing) { Text("Синхронизировать") }
                     OutlinedButton(onClick = actions.disconnect) { Text("Отключить") }
                 }
@@ -196,7 +196,7 @@ private fun HeartRateIntervalCard(state: UiState, onSelect: (Int) -> Unit) {
         val status = when {
             state.band.hrInterval == null -> null
             !state.band.hrIntervalPending -> "✓ Записано в браслет"
-            state.band.connection == Connection.CONNECTED -> "Записывается в браслет…"
+            state.band.connection == ConnectionStage.Connected -> "Записывается в браслет…"
             else -> "Будет записано в браслет при подключении"
         }
         status?.let {

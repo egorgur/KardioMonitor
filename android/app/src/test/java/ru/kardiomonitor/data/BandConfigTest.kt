@@ -1,9 +1,8 @@
-package ru.kardiomonitor.ble
+package ru.kardiomonitor.data
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
-import ru.kardiomonitor.data.BandConfig
 
 class BandConfigTest {
     private val expected = BandConfig("E7:19:F3:6C:04:9E", "00112233445566778899aabbccddeeff")

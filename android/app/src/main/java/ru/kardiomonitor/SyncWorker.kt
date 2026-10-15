@@ -12,8 +12,8 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import kotlinx.coroutines.CancellationException
-import ru.kardiomonitor.ble.GattClient
-import ru.kardiomonitor.ble.withResponseTimeout
+import ru.kardiomonitor.platform.ble.GattClient
+import ru.kardiomonitor.platform.ble.withResponseTimeout
 import ru.kardiomonitor.data.BandConfig
 import java.util.concurrent.TimeUnit
 

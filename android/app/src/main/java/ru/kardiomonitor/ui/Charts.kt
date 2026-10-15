@@ -28,7 +28,7 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import ru.kardiomonitor.ble.ActivitySample
+import ru.kardiomonitor.features.monitoring.domain.ActivityMinute
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlin.math.ceil
@@ -40,19 +40,19 @@ private val LEFT_AXIS = 32.dp
 private val BOTTOM_AXIS = 20.dp
 
 /** Минута суток -> значение. */
-private fun minuteOfDay(sample: ActivitySample, dayStart: Long) = ((sample.epochSecond - dayStart) / 60).toInt()
+private fun minuteOfDay(minute: ActivityMinute, dayStart: Long) = ((minute.start.epochSecond - dayStart) / 60).toInt()
 
 private fun hhmm(minute: Int) = "%02d:%02d".format(minute / 60, minute % 60)
 
 /** Пульс за сутки поминутно. Разрывы линии там, где пульса нет дольше 3 минут. */
 @Composable
-fun HeartRateChart(samples: List<ActivitySample>, day: LocalDate, modifier: Modifier = Modifier) {
+fun HeartRateChart(samples: List<ActivityMinute>, day: LocalDate, modifier: Modifier = Modifier) {
     val colors = LocalChartColors.current
     val surface = MaterialTheme.colorScheme.surface
     val measurer = rememberTextMeasurer()
     val dayStart = day.atStartOfDay(ZoneId.systemDefault()).toEpochSecond()
     val points = remember(samples, dayStart) {
-        samples.mapNotNull { s -> s.heartRate?.let { minuteOfDay(s, dayStart) to it } }
+        samples.mapNotNull { s -> s.heartRate?.let { minuteOfDay(s, dayStart) to it.bpm } }
     }
     var selected by remember(points) { mutableStateOf<Pair<Int, Int>?>(null) }
 
@@ -114,13 +114,13 @@ fun HeartRateChart(samples: List<ActivitySample>, day: LocalDate, modifier: Modi
 
 /** Шаги по часам. */
 @Composable
-fun StepsChart(samples: List<ActivitySample>, day: LocalDate, modifier: Modifier = Modifier) {
+fun StepsChart(samples: List<ActivityMinute>, day: LocalDate, modifier: Modifier = Modifier) {
     val colors = LocalChartColors.current
     val measurer = rememberTextMeasurer()
     val dayStart = day.atStartOfDay(ZoneId.systemDefault()).toEpochSecond()
     val hours = remember(samples, dayStart) {
         IntArray(24).also { acc ->
-            samples.forEach { s -> minuteOfDay(s, dayStart).takeIf { it in 0 until MINUTES_PER_DAY }?.let { acc[it / 60] += s.steps } }
+            samples.forEach { s -> minuteOfDay(s, dayStart).takeIf { it in 0 until MINUTES_PER_DAY }?.let { acc[it / 60] += s.steps.value } }
         }
     }
     var selected by remember(hours) { mutableStateOf<Int?>(null) }

@@ -1,4 +1,4 @@
-package ru.kardiomonitor.ble
+package ru.kardiomonitor.platform.ble
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.withTimeoutOrNull

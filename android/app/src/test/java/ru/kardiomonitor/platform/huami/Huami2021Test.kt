@@ -1,8 +1,10 @@
-package ru.kardiomonitor.ble
+package ru.kardiomonitor.platform.huami
 
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import ru.kardiomonitor.platform.ble.hexToBytes
+import ru.kardiomonitor.platform.ble.toHex
 
 /** Контрольные значения получены из huami2021.py, ECDH которого сверен с Gadgetbridge побайтно. */
 class Huami2021Test {

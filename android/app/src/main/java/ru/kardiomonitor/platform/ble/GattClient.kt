@@ -1,4 +1,4 @@
-package ru.kardiomonitor.ble
+package ru.kardiomonitor.platform.ble
 
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter

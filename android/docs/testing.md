@@ -8,7 +8,7 @@
 
 ```bash
 ./gradlew testDebugUnitTest            # модульные тесты (JVM, без телефона), ~10 с
-./gradlew testDebugUnitTest --tests 'ru.kardiomonitor.ble.Huami2021Test'   # один класс
+./gradlew testDebugUnitTest --tests 'ru.kardiomonitor.platform.huami.Huami2021Test'   # один класс
 ./gradlew lintDebug                    # статический анализ Android
 ./gradlew assembleDebug                # сборка APK
 ./gradlew installDebug                 # установка на телефон по adb

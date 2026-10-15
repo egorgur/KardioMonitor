@@ -1,8 +1,13 @@
-package ru.kardiomonitor.ble
+package ru.kardiomonitor.platform.huami
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import ru.kardiomonitor.features.monitoring.domain.ActivityKind
+import ru.kardiomonitor.features.monitoring.domain.HeartRate
+import ru.kardiomonitor.features.monitoring.domain.StepCount
+import ru.kardiomonitor.platform.ble.hexToBytes
+import ru.kardiomonitor.platform.ble.toHex
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
 
@@ -35,13 +40,22 @@ class MiBand6Test {
         // первые записи history.csv: 12:03 kind=112 steps=5 hr=нет; 14:51 hr=73
         val raw = "70060500" + "00800000" + "50090049" + "00800000"
         val start = ZonedDateTime.of(2026, 10, 9, 12, 3, 0, 0, tz)
-        val samples = MiBand6.parseSamples(start, raw.hexToBytes())
-        assertEquals(2, samples.size)
-        assertEquals(112, samples[0].kind)
-        assertEquals(5, samples[0].steps)
-        assertNull(samples[0].heartRate)
-        assertEquals(73, samples[1].heartRate)
-        assertEquals(start.toEpochSecond() + 60, samples[1].epochSecond)
+        val minutes = ActivityRecords.parse(start, raw.hexToBytes())
+        assertEquals(2, minutes.size)
+        assertEquals(ActivityKind.Other(112), minutes[0].kind)
+        assertEquals(StepCount(5), minutes[0].steps)
+        assertNull(minutes[0].heartRate)
+        assertEquals(HeartRate(73), minutes[1].heartRate)
+        assertEquals(start.toInstant().plusSeconds(60), minutes[1].start)
+    }
+
+    @Test
+    fun `коды браслета снят, заряжается и сон переводятся в типы активности`() {
+        // kind 115, 118, 120 — docs/ble-protocol.md, «История активности»
+        val raw = "73000000" + "00800000" + "76000000" + "00800000" + "78000000" + "00800000"
+        val start = ZonedDateTime.of(2026, 10, 9, 0, 0, 0, 0, tz)
+        val kinds = ActivityRecords.parse(start, raw.hexToBytes()).map { it.kind }
+        assertEquals(listOf(ActivityKind.NotWorn, ActivityKind.Charging, ActivityKind.Sleep), kinds)
     }
 
     @Test

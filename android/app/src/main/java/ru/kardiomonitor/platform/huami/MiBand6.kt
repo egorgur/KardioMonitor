@@ -1,31 +1,25 @@
-package ru.kardiomonitor.ble
+package ru.kardiomonitor.platform.huami
 
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
+import ru.kardiomonitor.features.monitoring.domain.ActivityMinute
+import ru.kardiomonitor.platform.ble.GattClient
+import ru.kardiomonitor.platform.ble.toHex
+import ru.kardiomonitor.platform.ble.withResponseTimeout
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
 import java.util.UUID
 
-class AuthException(message: String) : IOException(message)
-
-/** Запись за одну минуту из истории браслета. */
-data class ActivitySample(
-    val epochSecond: Long,
-    val heartRate: Int?,
-    val steps: Int,
-    val kind: Int,
-    val intensity: Int,
-)
-
 /**
  * Протокол Mi Band 6 поверх GattClient. Порт miband6_poc.py и fetch_history.py.
  * [scope] нужен для фоновых подтверждений (ack) сообщений канала 0x0017.
+ * Наружу из `platform.huami` не выходит: доменные типы отдаёт [HuamiBand].
  */
-class MiBand6(private val gatt: GattClient, private val scope: CoroutineScope) {
+internal class MiBand6(private val gatt: GattClient, private val scope: CoroutineScope) {
 
     // ---------- Авторизация ----------
 
@@ -147,7 +141,7 @@ class MiBand6(private val gatt: GattClient, private val scope: CoroutineScope) {
      * Выгружает поминутную историю начиная с [since]. Подтверждение 03 («данные получены»)
      * не отправляется — данные остаются на браслете и для Mi Fitness.
      */
-    suspend fun fetchActivity(since: ZonedDateTime, onProgress: (String) -> Unit): List<ActivitySample> {
+    suspend fun fetchActivity(since: ZonedDateTime, onProgress: (minutesReceived: Int) -> Unit): List<ActivityMinute> {
         val control = Channel<ByteArray>(Channel.UNLIMITED)
         val buffer = ByteArrayOutputStream()
         var lastCounter = -1
@@ -175,7 +169,7 @@ class MiBand6(private val gatt: GattClient, private val scope: CoroutineScope) {
             r
         }
 
-        val samples = mutableListOf<ActivitySample>()
+        val samples = mutableListOf<ActivityMinute>()
         var from = since
         repeat(MAX_ROUNDS) {
             synchronized(buffer) {
@@ -194,8 +188,8 @@ class MiBand6(private val gatt: GattClient, private val scope: CoroutineScope) {
                 if (broken) throw IOException("история пришла с пропусками пакетов")
                 buffer.toByteArray()
             }
-            val chunk = parseSamples(start, raw)
-            onProgress("получено ${samples.size + chunk.size} мин")
+            val chunk = ActivityRecords.parse(start, raw)
+            onProgress(samples.size + chunk.size)
             if (chunk.isEmpty()) return samples
             samples += chunk
             from = start.plusMinutes(chunk.size.toLong())
@@ -222,11 +216,6 @@ class MiBand6(private val gatt: GattClient, private val scope: CoroutineScope) {
         private const val MAX_ROUNDS = 30
         private const val RESPONSE_TIMEOUT_MS = 10_000L
         private const val FETCH_TIMEOUT_MS = 15_000L
-        private const val SAMPLE_SIZE = 8 // Mi Band 6
-
-        const val KIND_NOT_WORN = 115
-        const val KIND_CHARGING = 118
-        const val KIND_SLEEP = 120
 
         /** Как в Gadgetbridge (HuamiSupport.setHeartrateMeasurementInterval): 14 <минуты>, максимум 120. */
         fun heartRateIntervalCommand(minutes: Int): ByteArray {
@@ -246,22 +235,6 @@ class MiBand6(private val gatt: GattClient, private val scope: CoroutineScope) {
                 le16(data, offset), data[offset + 2].toInt(), data[offset + 3].toInt(),
                 data[offset + 4].toInt(), data[offset + 5].toInt(), data[offset + 6].toInt(), 0, zone,
             )
-        }
-
-        /** 8 байт на минуту: kind, intensity, steps, heart_rate, ?, sleep, deep_sleep, rem_sleep. */
-        fun parseSamples(start: ZonedDateTime, raw: ByteArray): List<ActivitySample> {
-            val startSecond = start.toEpochSecond()
-            return (0 until raw.size / SAMPLE_SIZE).map { i ->
-                val o = i * SAMPLE_SIZE
-                val hr = raw[o + 3].toInt() and 0xFF
-                ActivitySample(
-                    epochSecond = startSecond + i * 60L,
-                    heartRate = hr.takeIf { it in 11..249 }, // 0 — не измерялся, 255 — ошибка
-                    steps = raw[o + 2].toInt() and 0xFF,
-                    kind = raw[o].toInt() and 0xFF,
-                    intensity = raw[o + 1].toInt() and 0xFF,
-                )
-            }
         }
     }
 }

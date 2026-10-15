@@ -1,4 +1,4 @@
-package ru.kardiomonitor.ble
+package ru.kardiomonitor.platform.ble
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.awaitCancellation

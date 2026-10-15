@@ -11,10 +11,9 @@ import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import ru.kardiomonitor.ble.ActivitySample
-import ru.kardiomonitor.ble.toActivityMinute
 import ru.kardiomonitor.data.BandConfig
 import ru.kardiomonitor.data.BandSettings
+import ru.kardiomonitor.features.monitoring.domain.ActivityMinute
 import ru.kardiomonitor.features.monitoring.domain.DailySummary
 import java.time.LocalDate
 import java.time.ZoneId
@@ -24,7 +23,7 @@ data class UiState(
     val band: BandState = BandState(),
     val backgroundSync: Boolean = true,
     val day: LocalDate = LocalDate.now(),
-    val daySamples: List<ActivitySample> = emptyList(),
+    val dayMinutes: List<ActivityMinute> = emptyList(),
     val daySummary: DailySummary = DailySummary.of(emptyList()),
 )
 
@@ -92,9 +91,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val zone = ZoneId.systemDefault()
             val from = day.atStartOfDay(zone).toEpochSecond()
             val to = day.plusDays(1).atStartOfDay(zone).toEpochSecond()
-            val samples = withContext(Dispatchers.IO) { manager.store.query(from, to) }
-            val summary = DailySummary.of(samples.map { it.toActivityMinute() })
-            _state.update { if (it.day == day) it.copy(daySamples = samples, daySummary = summary) else it }
+            val minutes = withContext(Dispatchers.IO) { manager.store.query(from, to) }
+            val summary = DailySummary.of(minutes)
+            _state.update { if (it.day == day) it.copy(dayMinutes = minutes, daySummary = summary) else it }
         }
     }
 }

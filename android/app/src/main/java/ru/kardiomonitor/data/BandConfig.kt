@@ -1,7 +1,7 @@
 package ru.kardiomonitor.data
 
 import android.content.Context
-import ru.kardiomonitor.ble.hexToBytes
+import ru.kardiomonitor.platform.ble.hexToBytes
 
 /** MAC-адрес и ключ браслета. Выдаются клиникой (QR-код) или вводятся вручную. */
 data class BandConfig(val mac: String, val keyHex: String) {
