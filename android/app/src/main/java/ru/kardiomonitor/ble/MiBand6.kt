@@ -226,6 +226,7 @@ class MiBand6(private val gatt: GattClient, private val scope: CoroutineScope) {
 
         const val KIND_NOT_WORN = 115
         const val KIND_CHARGING = 118
+        const val KIND_SLEEP = 120
 
         /** Как в Gadgetbridge (HuamiSupport.setHeartrateMeasurementInterval): 14 <минуты>, максимум 120. */
         fun heartRateIntervalCommand(minutes: Int): ByteArray {

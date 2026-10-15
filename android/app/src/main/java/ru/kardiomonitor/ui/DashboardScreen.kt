@@ -31,8 +31,8 @@ import ru.kardiomonitor.data.LastSync
 import java.time.Instant
 import java.time.ZoneId
 import ru.kardiomonitor.UiState
-import ru.kardiomonitor.ble.MiBand6
 import ru.kardiomonitor.data.BandSettings
+import ru.kardiomonitor.features.monitoring.domain.DailySummary
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -62,7 +62,7 @@ fun DashboardScreen(state: UiState, actions: DashboardActions, modifier: Modifie
         if (state.band.connection == Connection.CONNECTED) LiveHeartRateCard(state, actions.toggleHeartRate)
         HeartRateIntervalCard(state, actions.setHeartRateInterval)
         DayHeader(state.day, actions.showDay)
-        DaySummary(state)
+        DailySummaryCard(state.daySummary)
         SectionCard("Пульс, уд/мин") { HeartRateChart(state.daySamples, state.day) }
         SectionCard("Шаги по часам") { StepsChart(state.daySamples, state.day) }
         TextButton(onClick = actions.forgetBand) { Text("Сменить браслет") }
@@ -227,26 +227,26 @@ private fun DayHeader(day: LocalDate, onShowDay: (LocalDate) -> Unit) {
 }
 
 @Composable
-private fun DaySummary(state: UiState) {
-    val samples = state.daySamples
-    val hrs = samples.mapNotNull { it.heartRate }
+private fun DailySummaryCard(summary: DailySummary) {
     SectionCard("Итоги дня") {
-        if (samples.isEmpty()) {
+        if (!summary.hasData) {
             Text(
                 "Нет данных за этот день. Подключите браслет и синхронизируйте.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             return@SectionCard
         }
+        val min = summary.minHeartRate
+        val max = summary.maxHeartRate
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            StatTile("Шаги", samples.sumOf { it.steps }.toString())
-            StatTile("Пульс ср.", if (hrs.isEmpty()) "—" else hrs.average().toInt().toString())
-            StatTile("Мин–макс", if (hrs.isEmpty()) "—" else "${hrs.min()}–${hrs.max()}")
+            StatTile("Шаги", summary.steps.value.toString())
+            StatTile("Пульс ср.", summary.averageHeartRate?.bpm?.toString() ?: "—")
+            StatTile("Мин–макс", if (min == null || max == null) "—" else "${min.bpm}–${max.bpm}")
         }
-        val notWorn = samples.count { it.kind == MiBand6.KIND_NOT_WORN || it.kind == MiBand6.KIND_CHARGING }
+        val recorded = summary.recordedMinutes
         Text(
-            "Записано ${samples.size / 60} ч ${samples.size % 60} мин, пульс есть в ${100 * hrs.size / samples.size}% минут" +
-                if (notWorn > 0) ", браслет снят $notWorn мин" else "",
+            "Записано ${recorded / 60} ч ${recorded % 60} мин, пульс есть в ${summary.heartRateCoveragePercent}% минут" +
+                if (summary.notWornMinutes > 0) ", браслет снят ${summary.notWornMinutes} мин" else "",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

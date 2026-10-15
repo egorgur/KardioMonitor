@@ -195,7 +195,7 @@ app ──► features.*.<slice> ──► features.*.domain ◄── features.
 Порядок миграции (каждый шаг — отдельная задача, приложение работает после каждого;
 архитектурные тесты проверяют каждый перенесённый пакет; порядок шага — skill `/migration-step`):
 
-1. Ввести доменные типы `monitoring/domain` (`HeartRate`, `ActivityMinute`, `ActivityKind`,
+1. ✅ Ввести доменные типы `monitoring/domain` (`HeartRate`, `ActivityMinute`, `ActivityKind`,
    `DailySummary`) с тестами; `DaySummary` в UI перевести на `DailySummary`.
 2. Перенести протокол в `platform/huami`, добавить ACL-адаптер, выдающий доменные типы.
 3. Ввести `AppContainer`, убрать `BandManager.get()`.
