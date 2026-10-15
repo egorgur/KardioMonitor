@@ -1,5 +1,6 @@
 package ru.kardiomonitor.features.monitoring.dailysummary
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -14,6 +15,7 @@ import ru.kardiomonitor.features.monitoring.domain.ActivityHistory
 import ru.kardiomonitor.features.monitoring.domain.ActivityMinute
 import ru.kardiomonitor.features.monitoring.domain.DailySummary
 import ru.kardiomonitor.platform.ui.HeartRatePoint
+import java.io.IOException
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -46,7 +48,12 @@ internal class DailySummaryViewModel(private val history: ActivityHistory) : Vie
     }
 
     private suspend fun load(day: LocalDate): DailySummaryUiState {
-        val minutes = history.minutesOf(day)
+        val minutes = try {
+            history.minutesOf(day)
+        } catch (e: IOException) {
+            Log.w(TAG, "не удалось прочитать историю за $day", e)
+            return emptyState(day)
+        }
         val dayStart = day.atStartOfDay(ZoneId.systemDefault()).toInstant()
         val minuteOfDay = { minute: ActivityMinute -> ((minute.start.epochSecond - dayStart.epochSecond) / 60).toInt() }
         return emptyState(day).copy(
@@ -75,6 +82,7 @@ internal class DailySummaryViewModel(private val history: ActivityHistory) : Vie
     }
 
     private companion object {
+        const val TAG = "KardioBLE"
         const val STOP_TIMEOUT_MS = 5_000L
     }
 }

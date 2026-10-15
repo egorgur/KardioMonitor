@@ -11,6 +11,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
+import java.io.IOException
 import ru.kardiomonitor.features.band.api.SessionUnavailableException
 import ru.kardiomonitor.features.band.domain.BatteryLevel
 import ru.kardiomonitor.features.band.domain.ConnectionProblem
@@ -106,13 +107,44 @@ class SingleBandConnectionTest {
     }
 
     @Test
-    fun `свёрнутое приложение не закрывает соединение во время измерения пульса`() = runBlocking {
+    fun `свёрнутое приложение без измерения пульса закрывает соединение сразу`() {
         connection.connect()
 
-        connection.holdOpen { connection.closeIfIdle() }
-        assertTrue(link.isOpen)
-
         connection.closeIfIdle()
+
+        assertFalse(link.isOpen)
+    }
+
+    @Test
+    fun `свёрнутое приложение закрывает соединение, когда измерение пульса закончится`() = runBlocking {
+        connection.connect()
+
+        connection.holdOpen {
+            connection.closeIfIdle()
+            assertTrue(link.isOpen)
+        }
+
+        assertFalse(link.isOpen)
+    }
+
+    @Test
+    fun `действие с экрана не открывает соединение, если браслет не подключён`() = runBlocking {
+        try {
+            connection.withOpenSession { }
+            fail("закрытое соединение не должно открываться действием с экрана")
+        } catch (e: SessionUnavailableException) {
+            assertEquals(ConnectionProblem.NotConnected, e.problem)
+        }
+        assertEquals(0, link.openCount)
+    }
+
+    @Test
+    fun `сбой связи сразу после авторизации закрывает соединение и называет причину`() {
+        link.batteryFailure = IOException("браслет не ответил")
+
+        connection.connect()
+
+        assertEquals(ConnectionProblem.LinkFailed("браслет не ответил"), connection.state.value.problem)
         assertFalse(link.isOpen)
     }
 }

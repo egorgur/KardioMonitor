@@ -7,6 +7,7 @@ import ru.kardiomonitor.features.band.domain.ConnectionProblem
 import ru.kardiomonitor.features.band.domain.ConnectionStage
 import ru.kardiomonitor.features.band.domain.HeartRateMeasurementInterval
 import ru.kardiomonitor.features.band.domain.OpenResult
+import java.io.IOException
 
 /** Браслет без Bluetooth: открывается, если [refusal] не задан; помнит, что в него записали. */
 class FakeBandLink(
@@ -34,7 +35,13 @@ class FakeBandLink(
         isOpen = false
     }
 
-    override suspend fun readBattery(): BatteryLevel = battery
+    /** Сбой связи при чтении заряда сразу после авторизации. */
+    var batteryFailure: IOException? = null
+
+    override suspend fun readBattery(): BatteryLevel {
+        batteryFailure?.let { throw it }
+        return battery
+    }
 
     override suspend fun writeHeartRateMeasurementInterval(interval: HeartRateMeasurementInterval) {
         writtenIntervals += interval

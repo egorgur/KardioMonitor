@@ -3,19 +3,20 @@ package ru.kardiomonitor.features.monitoring.data
 import android.content.ContentValues
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
+import android.database.sqlite.SQLiteException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.withContext
 import ru.kardiomonitor.features.monitoring.domain.ActivityHistory
-import ru.kardiomonitor.features.monitoring.domain.ActivityKind
 import ru.kardiomonitor.features.monitoring.domain.ActivityMinute
 import ru.kardiomonitor.features.monitoring.domain.HeartRate
 import ru.kardiomonitor.features.monitoring.domain.Intensity
 import ru.kardiomonitor.features.monitoring.domain.StepCount
 import ru.kardiomonitor.platform.db.KardioDatabase
 import ru.kardiomonitor.platform.db.KardioDatabase.Companion.ACTIVITY_TABLE
+import java.io.IOException
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -28,11 +29,11 @@ class SqliteActivityHistory(private val database: KardioDatabase) : ActivityHist
 
     override suspend fun save(minutes: List<ActivityMinute>) {
         if (minutes.isEmpty()) return
-        withContext(Dispatchers.IO) { insert(minutes) }
+        withDatabase { insert(minutes) }
         changeEvents.tryEmit(Unit)
     }
 
-    override suspend fun minutesOf(day: LocalDate): List<ActivityMinute> = withContext(Dispatchers.IO) {
+    override suspend fun minutesOf(day: LocalDate): List<ActivityMinute> = withDatabase {
         val zone = ZoneId.systemDefault()
         val from = day.atStartOfDay(zone).toEpochSecond()
         val to = day.plusDays(1).atStartOfDay(zone).toEpochSecond()
@@ -44,7 +45,7 @@ class SqliteActivityHistory(private val database: KardioDatabase) : ActivityHist
         }
     }
 
-    override suspend fun lastRecordedMinute(): Instant? = withContext(Dispatchers.IO) {
+    override suspend fun lastRecordedMinute(): Instant? = withDatabase {
         database.readableDatabase.rawQuery("SELECT MAX(ts) FROM $ACTIVITY_TABLE", null).use { c ->
             if (c.moveToFirst() && !c.isNull(0)) Instant.ofEpochSecond(c.getLong(0)) else null
         }
@@ -61,7 +62,7 @@ class SqliteActivityHistory(private val database: KardioDatabase) : ActivityHist
                 val heartRate = minute.heartRate
                 if (heartRate != null) values.put("hr", heartRate.bpm) else values.putNull("hr")
                 values.put("steps", minute.steps.value)
-                values.put("kind", kindCode(minute.kind))
+                values.put("kind", ActivityKindCodes.code(minute.kind))
                 values.put("intensity", minute.intensity.value)
                 db.insertWithOnConflict(ACTIVITY_TABLE, null, values, SQLiteDatabase.CONFLICT_REPLACE)
             }
@@ -75,28 +76,16 @@ class SqliteActivityHistory(private val database: KardioDatabase) : ActivityHist
         start = Instant.ofEpochSecond(getLong(0)),
         steps = StepCount(getInt(2)),
         heartRate = if (isNull(1)) null else HeartRate.fromMeasurement(getInt(1)),
-        kind = kind(getInt(3)),
+        kind = ActivityKindCodes.kind(getInt(3)),
         intensity = Intensity(getInt(4)),
     )
 
-    /** Тип активности хранится кодом браслета — так его записывал прототип (docs/ble-protocol.md). */
-    private fun kindCode(kind: ActivityKind): Int = when (kind) {
-        ActivityKind.NotWorn -> KIND_NOT_WORN
-        ActivityKind.Charging -> KIND_CHARGING
-        ActivityKind.Sleep -> KIND_SLEEP
-        is ActivityKind.Other -> kind.code
-    }
-
-    private fun kind(code: Int): ActivityKind = when (code) {
-        KIND_NOT_WORN -> ActivityKind.NotWorn
-        KIND_CHARGING -> ActivityKind.Charging
-        KIND_SLEEP -> ActivityKind.Sleep
-        else -> ActivityKind.Other(code)
-    }
-
-    private companion object {
-        const val KIND_NOT_WORN = 115
-        const val KIND_CHARGING = 118
-        const val KIND_SLEEP = 120
+    /** Ошибка SQLite — сбой хранилища для вызывающего, а не падение процесса (coding-rules.md §7). */
+    private suspend fun <T> withDatabase(block: () -> T): T = withContext(Dispatchers.IO) {
+        try {
+            block()
+        } catch (e: SQLiteException) {
+            throw IOException("история активности недоступна: ${e.message}", e)
+        }
     }
 }

@@ -103,8 +103,10 @@ internal class MiBand6(private val gatt: GattClient, private val scope: Coroutin
 
     suspend fun startHeartRate(onValue: (Int) -> Unit) {
         gatt.enableNotifications(HR_MEASUREMENT) { data ->
-            val bpm = if (data[0].toInt() and 0x01 != 0) le16(data, 1) else data[1].toInt() and 0xFF
-            onValue(bpm)
+            // поток Binder: короткий пакет пропускаем, а не роняем процесс
+            val isUint16 = data.isNotEmpty() && data[0].toInt() and 0x01 != 0
+            if (data.size < (if (isUint16) 3 else 2)) return@enableNotifications
+            onValue(if (isUint16) le16(data, 1) else data[1].toInt() and 0xFF)
         }
         gatt.write(HR_CONTROL, byteArrayOf(0x15, 0x02, 0x00)) // стоп ручного измерения
         gatt.write(HR_CONTROL, byteArrayOf(0x15, 0x01, 0x00)) // стоп непрерывного

@@ -3,6 +3,9 @@ package ru.kardiomonitor.features.band.domain
 /** Почему сеанса связи с браслетом нет или он работает не полностью. */
 sealed interface ConnectionProblem {
     data object NotPaired : ConnectionProblem
+
+    /** Действие требует открытого соединения, а браслет не подключён. */
+    data object NotConnected : ConnectionProblem
     data object NoBluetooth : ConnectionProblem
     data object BluetoothOff : ConnectionProblem
     data object NoPermission : ConnectionProblem

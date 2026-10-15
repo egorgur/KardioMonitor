@@ -5,6 +5,7 @@ import ru.kardiomonitor.features.band.domain.ConnectionProblem
 /** Текст причины для пользователя. */
 internal fun ConnectionProblem.text(): String = when (this) {
     ConnectionProblem.NotPaired -> "Браслет не привязан"
+    ConnectionProblem.NotConnected -> "Браслет не подключён"
     ConnectionProblem.NoBluetooth -> "На телефоне нет Bluetooth"
     ConnectionProblem.BluetoothOff -> "Bluetooth выключен"
     ConnectionProblem.NoPermission -> "Нет разрешения на Bluetooth"

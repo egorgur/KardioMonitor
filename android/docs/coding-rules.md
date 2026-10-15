@@ -117,7 +117,8 @@ private const val CMD_SET_HEART_RATE_INTERVAL: Byte = 0x14
   в `Channel`/`StateFlow`, никакой долгой работы и GATT-операций.
 - GATT-операции — только через `GattClient` (он выстраивает их в очередь). Прямые
   вызовы `BluetoothGatt` в слайсах запрещены.
-- Таймауты на всё, что ждёт браслет: `withTimeout`.
+- Таймауты на всё, что ждёт браслет: `withResponseTimeout` (`platform.ble`) или
+  `withTimeoutOrNull(…) ?: throw IOException(…)` — не голый `withTimeout` (§7).
 
 ## 9. Jetpack Compose
 

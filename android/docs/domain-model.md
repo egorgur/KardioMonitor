@@ -18,14 +18,15 @@
 | Минута активности | `ActivityMinute` | Value Object | Запись браслета за одну минуту: время начала, шаги, пульс (может отсутствовать), тип активности, интенсивность. Неизменяемая. Ключ — время начала минуты |
 | Пульс | `HeartRate` | Value Object (`value class`, уд/мин) | Допустимо 11–249. Значения 0 и 255 от браслета означают «замера нет» → `null`, а не `HeartRate` (`HeartRate.fromMeasurement`) |
 | Шаги | `StepCount` | Value Object | Неотрицательное целое |
-| Тип активности | `ActivityKind` | `sealed interface` | `NotWorn` (код 115 — браслет снят), `Charging` (118), `Sleep` (120), `Other(code)`. Коды — деталь протокола, известны только ACL |
+| Тип активности | `ActivityKind` | `sealed interface` | `NotWorn` (код 115 — браслет снят), `Charging` (118), `Sleep` (120), `Other(code)`. Коды — деталь протокола, известны ACL (`ActivityRecords`) и формату базы (`monitoring.data.ActivityKindCodes`: история прототипа хранится кодами) |
 | Интенсивность | `Intensity` | Value Object | Сырое значение браслета 0–255, смысл не расшифрован — не интерпретировать |
 | История активности | `ActivityHistory` | Repository (интерфейс) | Все сохранённые минуты активности. Операции: `save(minutes)`, `minutesOf(day)`, `lastRecordedMinute()`, `changes: Flow` |
-| Источник данных активности | `ActivitySource` | Порт (интерфейс в `domain`) | Браслет на языке мониторинга: `minutesSince(start)`, `liveHeartRate()`, `stepsToday()`. Реализует ACL `platform.huami.HuamiBand`. Вызывается только в сеансе связи (`BandConnection.withSession`) |
+| Источник данных активности | `ActivitySource` | Порт (интерфейс в `domain`) | Браслет на языке мониторинга: `minutesSince(start)`, `liveHeartRate()`, `stepsToday()`. Реализует ACL `platform.huami.HuamiBand`. Только при открытом соединении: выгрузка — в `withSession`/`withOpenSession`, потоки — пока сеанс подключён (см. architecture.md) |
 | Итоги дня | `DailySummary` | Value Object (производный) | Для набора минут одного дня: сумма шагов, пульс ср/мин/макс (среднее округляется вниз), покрытие пульсом, минуты без браслета (`NotWorn` и `Charging`). Создаётся `DailySummary.of(minutes)` |
 | Покрытие пульсом | `heartRateCoveragePercent` | свойство `DailySummary` | Доля записанных минут дня, в которых есть пульс, 0–100 % |
 | Синхронизация истории | `SyncHistory` | Сценарий | Выгрузка минут с браслета начиная с `HistorySyncStart` и сохранение в `ActivityHistory`; итог — в `SyncSettings.lastSync` |
 | Начало выгрузки | `HistorySyncStart` | Правило (`object`) | Минута после `lastRecordedMinute()`; при первой синхронизации — за 7 дней. В часовом поясе телефона |
+| Результат синхронизации | `SyncResult` | `sealed interface` (слайс `historysync`) | `Downloaded(minutes)` или `Failed(reason)`; даёт текст итога |
 | Итог синхронизации | `LastSync` | Value Object | Время, итог для пользователя («загружено 30 мин», «ошибка: …»), фоновая ли синхронизация |
 | Настройки синхронизации | `SyncSettings` | Repository (интерфейс) | Включена ли фоновая синхронизация (по умолчанию да) и итог последней синхронизации. Сбрасываются, когда браслет отвязан |
 | Фоновая синхронизация | `HistorySyncWorker` | Точка входа слайса | Синхронизация истории по расписанию раз в 30 минут |
@@ -42,10 +43,11 @@
 | Ключ авторизации | `AuthKey` | Value Object | 16 байт. **Секрет**: `toString()` не раскрывает значение, ключ не логируется |
 | Учётные данные браслета | `BandCredentials` | Value Object | Адрес + ключ. Выдаются клиникой в QR-коде `kardio;<MAC>;<ключ>` |
 | Привязка браслета | `pairing` | Слайс | Ввод учётных данных (QR или вручную) и их удаление («Сменить браслет») |
-| Сеанс связи | `BandConnection` | Порт (`api`) | Установленное и авторизованное соединение. **Одно на всё приложение**: браслет держит одно соединение. Реализация — `SingleBandConnection` (слайс `connection`) |
+| Сеанс связи | `BandConnection` | Порт (`api`) | Установленное и авторизованное соединение. **Одно на всё приложение**: браслет держит одно соединение. Реализация — `SingleBandConnection` (слайс `connection`). `withSession` (подключается сам), `withOpenSession` (только открытое), `holdOpen` (не закрывать при сворачивании до конца измерения) |
 | Состояние сеанса | `ConnectionState` | Value Object (`api`) | Стадия, фоновый ли сеанс, заряд, записанная в браслет частота пульса, проблема |
 | Стадия подключения | `ConnectionStage` | `enum` | `Disconnected`, `Searching`, `Connecting`, `Authenticating`, `Connected` |
-| Проблема связи | `ConnectionProblem` | `sealed interface` | Почему сеанса нет или он неполный: не привязан, нет Bluetooth / разрешения, не найден, авторизация отклонена, сбой связи, соединение потеряно, настройка не записана |
+| Проблема связи | `ConnectionProblem` | `sealed interface` | Почему сеанса нет или он неполный: не привязан, не подключён (`NotConnected` — для действий с экрана), нет Bluetooth / разрешения, не найден, авторизация отклонена, сбой связи, соединение потеряно, настройка не записана |
+| Результат подключения | `OpenResult` | `sealed interface` | `Opened` или `Refused(problem)` — ответ `BandLink.open`; ошибки GATT и разбора ответов переводит в него ACL |
 | Канал связи | `BandLink` | Порт (интерфейс в `domain`) | Открыть/закрыть соединение с авторизацией, прочитать заряд, записать частоту пульса. Реализует ACL `platform.huami.HuamiBand`; пользуется только `SingleBandConnection` |
 | Частота измерения пульса | `HeartRateMeasurementInterval` | Value Object | `Off` или 1–120 минут. В интерфейсе: 1, 5, 10, 30 мин, «Выкл». Браслет не сообщает текущее значение — приложение хранит выбор и записывает его при каждом подключении |
 | Заряд браслета | `BatteryLevel` | Value Object | 0–100 %. Сохраняется при каждом подключении для оценки расхода |

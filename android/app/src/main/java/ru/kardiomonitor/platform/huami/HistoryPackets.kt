@@ -22,6 +22,10 @@ internal class HistoryPackets {
 
     @Synchronized
     fun add(packet: ByteArray) {
+        if (packet.isEmpty()) {
+            isBroken = true
+            return
+        }
         val counter = packet[0].toInt() and 0xFF
         if (counter != (lastCounter + 1) and 0xFF) {
             isBroken = true

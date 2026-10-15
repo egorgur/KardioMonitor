@@ -1,6 +1,7 @@
 package ru.kardiomonitor.features.band.api
 
 import kotlinx.coroutines.flow.StateFlow
+import ru.kardiomonitor.features.band.domain.ConnectionProblem
 
 /**
  * Сеанс связи с браслетом — порт контекста «Браслет». **Один на всё приложение**: браслет
@@ -29,6 +30,17 @@ interface BandConnection {
      */
     suspend fun <T> withSession(isBackground: Boolean, block: suspend () -> T): T
 
-    /** Не даёт [closeIfIdle] закрыть соединение, пока выполняется [block] (например, «пульс сейчас»). */
+    /**
+     * Выполняет [block] в уже открытом сеансе — по очереди с другими сценариями; соединение не
+     * открывает (действие пользователя на экране подключённого браслета).
+     *
+     * @throws SessionUnavailableException соединение закрыто ([ConnectionProblem.NotConnected]).
+     */
+    suspend fun <T> withOpenSession(block: suspend () -> T): T
+
+    /**
+     * Не даёт [closeIfIdle] закрыть соединение, пока выполняется [block] (например, «пульс сейчас»);
+     * если приложение свернули за это время, соединение закрывается, когда [block] закончится.
+     */
     suspend fun <T> holdOpen(block: suspend () -> T): T
 }

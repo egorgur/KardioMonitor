@@ -1,9 +1,11 @@
 package ru.kardiomonitor.features.monitoring.historysync
 
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import ru.kardiomonitor.features.band.api.BandConnection
 import ru.kardiomonitor.features.band.domain.ConnectionProblem
 import ru.kardiomonitor.features.band.fakes.FakeBandConnection
 import ru.kardiomonitor.features.monitoring.domain.ActivityKind
@@ -17,6 +19,7 @@ import ru.kardiomonitor.features.monitoring.fakes.FakeSyncSettings
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
+import kotlin.time.Duration.Companion.milliseconds
 
 class SyncHistoryTest {
     private val now = Instant.parse("2026-10-09T12:00:00Z")
@@ -79,5 +82,18 @@ class SyncHistoryTest {
         assertTrue(result is SyncResult.Failed)
         assertTrue(settings.lastSync.value?.summary.orEmpty().startsWith("ошибка: "))
         assertTrue(history.minutes.isEmpty())
+    }
+
+    @Test
+    fun `зависший браслет — фоновая синхронизация завершается ошибкой, а не тихой отменой`() = runBlocking {
+        val hangingConnection = object : BandConnection by connection {
+            override suspend fun <T> withSession(isBackground: Boolean, block: suspend () -> T): T = awaitCancellation()
+        }
+        val sync = SyncHistory(hangingConnection, source, history, settings, clock)
+
+        val result = sync(isBackground = true, timeout = 10.milliseconds)
+
+        assertTrue(result is SyncResult.Failed)
+        assertTrue(settings.lastSync.value?.summary.orEmpty().startsWith("ошибка: синхронизация не уложилась"))
     }
 }

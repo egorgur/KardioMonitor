@@ -44,9 +44,8 @@ internal class SyncHistory(
         onProgress: (minutesReceived: Int) -> Unit = {},
     ): SyncResult {
         val result = try {
-            val minutes = withTimeoutOrNull(timeout) {
-                connection.withSession(isBackground) { downloadNewMinutes(onProgress) }
-            } ?: throw IOException("синхронизация не уложилась в $timeout")
+            val minutes = withTimeoutOrNull(timeout) { inSession(isBackground) { downloadNewMinutes(onProgress) } }
+                ?: throw IOException("синхронизация не уложилась в $timeout")
             SyncResult.Downloaded(minutes)
         } catch (e: IOException) {
             Log.w(TAG, "синхронизация не удалась", e)
@@ -56,6 +55,10 @@ internal class SyncHistory(
         settings.recordSync(LastSync(clock.instant(), result.summary, isBackground))
         return result
     }
+
+    /** Фон подключается сам (ADR-0003); с экрана — только через соединение, открытое пользователем. */
+    private suspend fun <T> inSession(isBackground: Boolean, block: suspend () -> T): T =
+        if (isBackground) connection.withSession(isBackground = true, block) else connection.withOpenSession(block)
 
     private suspend fun downloadNewMinutes(onProgress: (Int) -> Unit): Int {
         val start = HistorySyncStart.after(history.lastRecordedMinute(), ZonedDateTime.now(clock))

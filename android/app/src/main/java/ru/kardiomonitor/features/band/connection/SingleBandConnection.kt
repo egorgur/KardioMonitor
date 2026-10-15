@@ -43,8 +43,10 @@ class SingleBandConnection(
     @Volatile private var isOpen = false
     /** Пользователь нажал «Подключить» — соединение держим, пока он не отключит. */
     @Volatile private var isUserSession = false
+    /** Приложение свёрнуто во время [holdOpen] — закрыть соединение, когда удержание закончится. */
+    @Volatile private var isCloseRequested = false
     private var connectJob: Job? = null
-    private var knownBand: Band? = null
+    private var knownBand: Band? = repository.band.value
 
     override val state: StateFlow<ConnectionState> = current.asStateFlow()
 
@@ -56,6 +58,7 @@ class SingleBandConnection(
     override fun connect() {
         if (connectJob?.isActive == true) return
         isUserSession = true
+        isCloseRequested = false
         current.update { it.copy(problem = null) }
         connectJob = scope.launch {
             sessionMutex.withLock {
@@ -70,12 +73,13 @@ class SingleBandConnection(
 
     override fun disconnect() {
         isUserSession = false
+        isCloseRequested = false
         connectJob?.cancel()
         close()
     }
 
     override fun closeIfIdle() {
-        if (holds.get() == 0) disconnect()
+        if (holds.get() == 0) disconnect() else isCloseRequested = true
     }
 
     override fun dismissProblem() {
@@ -98,9 +102,17 @@ class SingleBandConnection(
         try {
             return block()
         } finally {
-            holds.decrementAndGet()
+            if (holds.decrementAndGet() == 0 && isCloseRequested) disconnect()
         }
     }
+
+    override suspend fun <T> withOpenSession(block: suspend () -> T): T =
+        sessionMutex.withLock {
+            if (!isOpen) {
+                throw SessionUnavailableException(ConnectionProblem.NotConnected, ConnectionProblem.NotConnected.text())
+            }
+            block()
+        }
 
     /** Открывает соединение; null — открыто, иначе — почему нет. Вызывать под [sessionMutex]. */
     private suspend fun open(isBackground: Boolean): ConnectionProblem? {

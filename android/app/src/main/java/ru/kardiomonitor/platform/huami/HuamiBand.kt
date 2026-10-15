@@ -27,6 +27,7 @@ import ru.kardiomonitor.features.monitoring.domain.HeartRate
 import ru.kardiomonitor.features.monitoring.domain.StepCount
 import ru.kardiomonitor.platform.ble.GattClient
 import java.io.IOException
+import java.time.DateTimeException
 import java.time.ZonedDateTime
 
 /**
@@ -62,6 +63,12 @@ class HuamiBand(private val context: Context, private val scope: CoroutineScope)
         } catch (e: IOException) {
             close()
             OpenResult.Refused(ConnectionProblem.LinkFailed(e.message ?: e.toString()))
+        } catch (e: IllegalArgumentException) {
+            close()
+            OpenResult.Refused(ConnectionProblem.LinkFailed(unexpectedResponse(e).message.orEmpty()))
+        } catch (e: IndexOutOfBoundsException) {
+            close()
+            OpenResult.Refused(ConnectionProblem.LinkFailed(unexpectedResponse(e).message.orEmpty()))
         } catch (e: SecurityException) {
             Log.w(GattClient.TAG, "Android отозвал разрешение на Bluetooth", e)
             close()
@@ -93,7 +100,7 @@ class HuamiBand(private val context: Context, private val scope: CoroutineScope)
     }
 
     override suspend fun readBattery(): BatteryLevel {
-        val percent = requireOpen().readBattery()
+        val percent = protocolCall { requireOpen().readBattery() }
         if (percent !in 0..100) throw IOException("браслет сообщил заряд вне диапазона: $percent")
         return BatteryLevel(percent)
     }
@@ -110,7 +117,7 @@ class HuamiBand(private val context: Context, private val scope: CoroutineScope)
     override suspend fun minutesSince(
         start: ZonedDateTime,
         onProgress: (minutesReceived: Int) -> Unit,
-    ): List<ActivityMinute> = requireOpen().fetchActivity(start, onProgress)
+    ): List<ActivityMinute> = protocolCall { requireOpen().fetchActivity(start, onProgress) }
 
     /** Браслет прекращает непрерывное измерение без пинга, поэтому пинг — раз в 12 с. */
     override fun liveHeartRate(): Flow<HeartRate?> = callbackFlow {
@@ -130,7 +137,7 @@ class HuamiBand(private val context: Context, private val scope: CoroutineScope)
 
     override fun stepsToday(): Flow<StepCount> = callbackFlow {
         val opened = requireOpen()
-        send(StepCount(opened.readSteps()))
+        send(StepCount(protocolCall { opened.readSteps() }))
         opened.subscribeSteps { steps -> trySend(StepCount(steps)) }
         awaitClose()
     }
@@ -144,6 +151,22 @@ class HuamiBand(private val context: Context, private val scope: CoroutineScope)
     }
 
     private fun requireOpen(): MiBand6 = band ?: throw IOException("нет соединения с браслетом")
+
+    /**
+     * Ответ браслета не того формата (короткий пакет, невозможная дата, ключ не на кривой) —
+     * сбой связи, а не ошибка программы: наружу из ACL выходит только [IOException].
+     */
+    private inline fun <T> protocolCall(block: () -> T): T = try {
+        block()
+    } catch (e: IndexOutOfBoundsException) {
+        throw unexpectedResponse(e)
+    } catch (e: IllegalArgumentException) {
+        throw unexpectedResponse(e)
+    } catch (e: DateTimeException) {
+        throw unexpectedResponse(e)
+    }
+
+    private fun unexpectedResponse(cause: Exception) = IOException("неожиданный ответ браслета", cause)
 
     private fun hasBluetoothPermissions(): Boolean = BLUETOOTH_PERMISSIONS.all {
         ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
