@@ -54,8 +54,8 @@ SET с восстановлением и клинический/фоновый E
 
 - JDK 21, Android SDK (platform 36), Gradle wrapper в репозитории (9.4).
 - Телефон с Android 8.0+ и BLE. Эмулятор для работы с браслетом не подходит.
-- Ключ авторизации браслета — см. корневой [README](../README.md), раздел
-  «Получить ключ авторизации».
+- Действующий ключ авторизации браслета — см. раздел
+  [«Ключи и привязка браслета»](../README.md#ключи-и-привязка-браслета).
 
 ## Сборка и запуск
 
@@ -114,7 +114,7 @@ android/
 | [docs/testing.md](docs/testing.md) | Тесты и проверка на телефоне |
 | [docs/ble-protocol.md](docs/ble-protocol.md) | Протокол Mi Band 6 |
 | [docs/qr-contract.md](docs/qr-contract.md) | Формат QR-кода браслета |
-| [docs/staff-app/](docs/staff-app/README.md) | Утилита персонала — спецификация второго приложения |
+| [docs/staff-app/](docs/staff-app/README.md) | Утилита персонала — текущая реализация и спецификация облачных сценариев |
 | [docs/ai-agent-workflow.md](docs/ai-agent-workflow.md) | Разработка с ИИ-агентом |
 | [docs/adr/](docs/adr/) | Архитектурные решения |
 
