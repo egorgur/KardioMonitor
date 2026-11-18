@@ -3,8 +3,14 @@
 from dishka import Provider, Scope, provide
 from fastapi import Request
 
-from kardiomonitor.features.patients.api import CurrentPatient, NotAuthenticatedError
+from kardiomonitor.features.patients.api import (
+    AttendedPatients,
+    CurrentPatient,
+    NotAuthenticatedError,
+)
+from kardiomonitor.features.patients.data.sql_enrollment_codes import SqlEnrollmentCodes
 from kardiomonitor.features.patients.data.sql_patient_registry import SqlPatientRegistry
+from kardiomonitor.features.patients.domain.enrollment_code import EnrollmentCodes
 from kardiomonitor.features.patients.domain.patient_registry import PatientRegistry
 from kardiomonitor.features.patients.domain.upload_token import UploadToken
 
@@ -17,6 +23,8 @@ class PatientsProvider(Provider):
     scope = Scope.REQUEST
 
     registry = provide(SqlPatientRegistry, provides=PatientRegistry)
+    attended_patients = provide(AttendedPatients)
+    enrollment_codes = provide(SqlEnrollmentCodes, provides=EnrollmentCodes)
 
     @provide
     async def current_patient(self, request: Request, registry: PatientRegistry) -> CurrentPatient:

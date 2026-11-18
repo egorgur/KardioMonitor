@@ -9,11 +9,15 @@ from httpx import ASGITransport, AsyncClient
 
 from kardiomonitor.app.main import create_app
 from kardiomonitor.features.monitoring.domain.activity_history import ActivityHistory
+from kardiomonitor.features.monitoring.domain.monitoring_events import (
+    MinutesReceived,
+    MonitoringSubscriber,
+)
 from kardiomonitor.features.patients.api import CurrentPatient
 from kardiomonitor.features.patients.domain.patient import Patient, PatientName
 from kardiomonitor.shared_kernel import Transaction
 from tests.fakes import NOW, FakeTransaction, replacing, settings_for_tests
-from tests.features.monitoring.fakes import FakeActivityHistory
+from tests.features.monitoring.fakes import FakeActivityHistory, RecordingSubscriber
 
 PATIENT = Patient.register(PatientName("Иван П."), ZoneInfo("Asia/Novosibirsk"), now=NOW)
 URL = "/api/v1/me/activity-minutes"
@@ -30,14 +34,20 @@ def transaction() -> FakeTransaction:
 
 
 @pytest.fixture
+def subscriber() -> RecordingSubscriber:
+    return RecordingSubscriber()
+
+
+@pytest.fixture
 async def client(
-    history: FakeActivityHistory, transaction: FakeTransaction
+    history: FakeActivityHistory, transaction: FakeTransaction, subscriber: RecordingSubscriber
 ) -> AsyncIterator[AsyncClient]:
     app = create_app(
         settings_for_tests(),
         replacing(
             (ActivityHistory, history),
             (Transaction, transaction),
+            (MonitoringSubscriber, subscriber),
             (CurrentPatient, CurrentPatient(PATIENT)),
         ),
     )
@@ -83,6 +93,20 @@ async def test_повторная_загрузка_тех_же_минут_не_�
 
     assert response.json()["new"] == 0
     assert len(history.minutes_of(PATIENT.id)) == 30
+
+
+async def test_о_принятых_минутах_узнают_подписчики_до_фиксации(
+    client: AsyncClient, subscriber: RecordingSubscriber
+) -> None:
+    body = {"minutes": [minute_json(10, 0), minute_json(10, 1)]}
+
+    await client.post(URL, json=body)
+
+    assert len(subscriber.events) == 1
+    event = subscriber.events[0]
+    assert isinstance(event, MinutesReceived)
+    assert event.patient == PATIENT
+    assert len(event.minutes) == 2
 
 
 async def test_пакет_с_нарушением_правила_не_сохраняется_ни_частично(

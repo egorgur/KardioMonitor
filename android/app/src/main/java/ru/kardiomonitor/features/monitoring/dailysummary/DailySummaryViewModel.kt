@@ -34,8 +34,11 @@ internal data class DailySummaryUiState(
 private const val HOURS_PER_DAY = 24
 
 /** Итоги выбранного дня; перечитывает день, когда история пополнилась (синхронизация с экрана или в фоне). */
-internal class DailySummaryViewModel(private val history: ActivityHistory) : ViewModel() {
-    private val selectedDay = MutableStateFlow(LocalDate.now())
+internal class DailySummaryViewModel(
+    private val history: ActivityHistory,
+    private val timeZone: ZoneId = ZoneId.systemDefault(),
+) : ViewModel() {
+    private val selectedDay = MutableStateFlow(LocalDate.now(timeZone))
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val state: StateFlow<DailySummaryUiState> = selectedDay
@@ -43,18 +46,18 @@ internal class DailySummaryViewModel(private val history: ActivityHistory) : Vie
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyState(selectedDay.value))
 
     fun showDay(day: LocalDate) {
-        if (day.isAfter(LocalDate.now())) return
+        if (day.isAfter(LocalDate.now(timeZone))) return
         selectedDay.value = day
     }
 
     private suspend fun load(day: LocalDate): DailySummaryUiState {
         val minutes = try {
-            history.minutesOf(day)
+            history.minutesOf(day, timeZone)
         } catch (e: IOException) {
             Log.w(TAG, "не удалось прочитать историю за $day", e)
             return emptyState(day)
         }
-        val dayStart = day.atStartOfDay(ZoneId.systemDefault()).toInstant()
+        val dayStart = day.atStartOfDay(timeZone).toInstant()
         val minuteOfDay = { minute: ActivityMinute -> ((minute.start.epochSecond - dayStart.epochSecond) / 60).toInt() }
         return emptyState(day).copy(
             summary = DailySummary.of(minutes),
@@ -72,7 +75,7 @@ internal class DailySummaryViewModel(private val history: ActivityHistory) : Vie
     }
 
     private fun emptyState(day: LocalDate): DailySummaryUiState {
-        val today = LocalDate.now()
+        val today = LocalDate.now(timeZone)
         val title = when (day) {
             today -> "Сегодня"
             today.minusDays(1) -> "Вчера"

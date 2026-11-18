@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "aiosqlite>=0.22.1",
+    "argon2-cffi>=25.1.0",
     "dishka>=1.10.1",
     "fastapi>=0.121.1",
     "pydantic-settings>=2.16.0",
@@ -37,7 +38,10 @@ src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "N", "UP", "B", "A", "C4", "C90", "SIM", "RET", "ARG", "PTH",
-          "ASYNC", "S", "T20", "ANN", "FBT", "DTZ", "ERA", "G", "BLE", "TRY", "PT", "PL", "RUF"]
+          "ASYNC", "S", "T20", "ANN", "FBT", "DTZ", "ERA", "G", "BLE", "TRY", "PT", "PL", "RUF",
+          "PLR1702"]   # вложенность ≤ 3 — preview-правило, включено явно (coding-rules.md §3)
+preview = true
+explicit-preview-rules = true   # из preview — только перечисленные явно
 ignore = [
     "RUF001", "RUF002", "RUF003",   # кириллица в строках и комментариях — норма проекта
     "TRY003",                       # сообщение исключения на русском прямо в raise — норма проекта
@@ -79,11 +83,19 @@ layers = ["kardiomonitor.app", "kardiomonitor.features", "kardiomonitor.platform
 [[tool.importlinter.contracts]]
 name = "Домен — чистый Python (ADR-0004)"
 type = "forbidden"
-source_modules = ["kardiomonitor.features.monitoring.domain", "kardiomonitor.features.patients.domain"]
+source_modules = [
+    "kardiomonitor.features.monitoring.domain", "kardiomonitor.features.patients.domain",
+    "kardiomonitor.features.rehab.domain", "kardiomonitor.features.access.domain",
+    "kardiomonitor.features.alerts.domain",
+]
 forbidden_modules = [
     "fastapi", "starlette", "pydantic", "sqlalchemy", "dishka", "kardiomonitor.platform",
     "kardiomonitor.features.monitoring.data", "kardiomonitor.features.patients.data",
+    "kardiomonitor.features.rehab.data", "kardiomonitor.features.access.data",
+    "kardiomonitor.features.alerts.data",
     "kardiomonitor.features.monitoring.provider", "kardiomonitor.features.patients.provider",
+    "kardiomonitor.features.rehab.provider", "kardiomonitor.features.access.provider",
+    "kardiomonitor.features.alerts.provider",
 ]
 
 [[tool.importlinter.contracts]]
@@ -91,11 +103,28 @@ name = "Слайсы не импортируют друг друга"
 type = "independence"
 modules = [
     "kardiomonitor.features.patients.registration",
+    "kardiomonitor.features.patients.admission",
+    "kardiomonitor.features.patients.patient_card",
+    "kardiomonitor.features.patients.enrollment",
     "kardiomonitor.features.monitoring.minute_upload",
     "kardiomonitor.features.monitoring.upload_cursor",
     "kardiomonitor.features.monitoring.live_heart_rate",
+    "kardiomonitor.features.monitoring.live_heart_rate_request",
     "kardiomonitor.features.monitoring.patient_day",
     "kardiomonitor.features.monitoring.patient_overview",
+    "kardiomonitor.features.rehab.rehab_plan",
+    "kardiomonitor.features.rehab.day_progress",
+    "kardiomonitor.features.rehab.rehab_progress",
+    "kardiomonitor.features.rehab.targets_for_phone",
+    "kardiomonitor.features.rehab.progress_overview",
+    "kardiomonitor.features.rehab.day_outcome_refresh",
+    "kardiomonitor.features.alerts.high_heart_rate",
+    "kardiomonitor.features.alerts.training_minutes",
+    "kardiomonitor.features.alerts.daily_check",
+    "kardiomonitor.features.alerts.clinician_alerts",
+    "kardiomonitor.features.alerts.patient_alerts",
+    "kardiomonitor.features.alerts.unviewed_counts",
+    "kardiomonitor.features.access.sign_in",
 ]
 
 [[tool.importlinter.contracts]]
@@ -103,20 +132,46 @@ name = "Слайсы видят порты, а не реализации: без
 type = "forbidden"
 source_modules = [
     "kardiomonitor.features.patients.registration",
+    "kardiomonitor.features.patients.admission",
+    "kardiomonitor.features.patients.patient_card",
+    "kardiomonitor.features.patients.enrollment",
     "kardiomonitor.features.monitoring.minute_upload",
     "kardiomonitor.features.monitoring.upload_cursor",
     "kardiomonitor.features.monitoring.live_heart_rate",
+    "kardiomonitor.features.monitoring.live_heart_rate_request",
     "kardiomonitor.features.monitoring.patient_day",
     "kardiomonitor.features.monitoring.patient_overview",
+    "kardiomonitor.features.rehab.rehab_plan",
+    "kardiomonitor.features.rehab.day_progress",
+    "kardiomonitor.features.rehab.rehab_progress",
+    "kardiomonitor.features.rehab.targets_for_phone",
+    "kardiomonitor.features.rehab.progress_overview",
+    "kardiomonitor.features.rehab.day_outcome_refresh",
+    "kardiomonitor.features.alerts.high_heart_rate",
+    "kardiomonitor.features.alerts.training_minutes",
+    "kardiomonitor.features.alerts.daily_check",
+    "kardiomonitor.features.alerts.clinician_alerts",
+    "kardiomonitor.features.alerts.patient_alerts",
+    "kardiomonitor.features.alerts.unviewed_counts",
+    "kardiomonitor.features.access.sign_in",
 ]
 forbidden_modules = [
     "sqlalchemy",
     "kardiomonitor.features.monitoring.data", "kardiomonitor.features.patients.data",
+    "kardiomonitor.features.rehab.data", "kardiomonitor.features.access.data",
+    "kardiomonitor.features.alerts.data",
     "kardiomonitor.features.monitoring.provider", "kardiomonitor.features.patients.provider",
+    "kardiomonitor.features.rehab.provider", "kardiomonitor.features.access.provider",
+    "kardiomonitor.features.alerts.provider",
 ]
 
 [[tool.importlinter.contracts]]
-name = "Пациенты не зависят от Мониторинга"
-type = "forbidden"
-source_modules = ["kardiomonitor.features.patients"]
-forbidden_modules = ["kardiomonitor.features.monitoring"]
+name = "Контексты — слои: верхний знает нижние, нижний не знает верхних (ADR-0008)"
+type = "layers"
+layers = [
+    "kardiomonitor.features.alerts",
+    "kardiomonitor.features.rehab",
+    "kardiomonitor.features.monitoring",
+    "kardiomonitor.features.patients",
+    "kardiomonitor.features.access",
+]

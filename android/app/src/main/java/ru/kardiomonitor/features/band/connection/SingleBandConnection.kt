@@ -1,7 +1,10 @@
 package ru.kardiomonitor.features.band.connection
 
 import android.util.Log
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,8 +30,8 @@ import java.util.concurrent.atomic.AtomicInteger
 /**
  * Точка входа слайса для композиционного корня: единственный сеанс связи с браслетом
  * (ADR-0003). Подключение и сценарии в сеансе выполняются по очереди ([sessionMutex]).
- * При каждом подключении сохраняет заряд и записывает выбранную частоту измерения пульса;
- * выбор частоты при открытом соединении записывается сразу. [scope] — scope приложения.
+ * При подключении сохраняет известный заряд. Частоту пишет только Band 6;
+ * у Band 9 — только GET с независимыми nullable-полями. [scope] — scope приложения.
  */
 class SingleBandConnection(
     private val link: BandLink,
@@ -65,7 +68,12 @@ class SingleBandConnection(
                 if (isOpen) {
                     current.update { it.copy(isBackground = false) }
                 } else {
-                    open(isBackground = false)?.let(::fail)
+                    try {
+                        open(isBackground = false)?.let(::fail)
+                    } catch (e: CancellationException) {
+                        close()
+                        throw e
+                    }
                 }
             }
         }
@@ -86,16 +94,28 @@ class SingleBandConnection(
         current.update { it.copy(problem = null) }
     }
 
-    override suspend fun <T> withSession(isBackground: Boolean, block: suspend () -> T): T =
-        sessionMutex.withLock {
-            if (isOpen) return@withLock block()
-            try {
+    override suspend fun <T> withSession(isBackground: Boolean, block: suspend () -> T): T = holdOpen {
+        sessionMutex.withLock { inSession(isBackground, block) }
+    }
+
+    override suspend fun <T> withSessionIf(
+        isBackground: Boolean,
+        isAllowed: () -> Boolean,
+        block: suspend () -> T,
+    ): T? = holdOpen {
+        sessionMutex.withLock { if (isAllowed()) inSession(isBackground, block) else null }
+    }
+
+    private suspend fun <T> inSession(isBackground: Boolean, block: suspend () -> T): T {
+        try {
+            if (!isOpen) {
                 open(isBackground)?.let { problem -> throw SessionUnavailableException(problem, problem.text()) }
-                block()
-            } finally {
-                if (!isUserSession) close()
             }
+            return block()
+        } finally {
+            if (!isUserSession) close()
         }
+    }
 
     override suspend fun <T> holdOpen(block: suspend () -> T): T {
         holds.incrementAndGet()
@@ -106,39 +126,63 @@ class SingleBandConnection(
         }
     }
 
-    override suspend fun <T> withOpenSession(block: suspend () -> T): T =
+    override suspend fun <T> withOpenSession(block: suspend () -> T): T = holdOpen {
         sessionMutex.withLock {
             if (!isOpen) {
                 throw SessionUnavailableException(ConnectionProblem.NotConnected, ConnectionProblem.NotConnected.text())
             }
             block()
         }
+    }
 
     /** Открывает соединение; null — открыто, иначе — почему нет. Вызывать под [sessionMutex]. */
     private suspend fun open(isBackground: Boolean): ConnectionProblem? {
         val band = repository.band.value ?: return ConnectionProblem.NotPaired
-        current.update { it.copy(isBackground = isBackground) }
-        val result = link.open(band.credentials) { stage -> current.update { it.copy(stage = stage) } }
+        current.update {
+            it.copy(isBackground = isBackground, battery = null, appliedInterval = null, reportedHeartRateSettings = null)
+        }
+        val result = try {
+            link.open(band.credentials) { stage -> current.update { it.copy(stage = stage) } }
+        } catch (e: IOException) {
+            close()
+            return ConnectionProblem.LinkFailed(e.message ?: "не удалось открыть соединение")
+        }
         if (result is OpenResult.Refused) {
             close()
             return result.problem
         }
         isOpen = true
         Log.i(TAG, "авторизация успешна (${if (isBackground) "фон" else "экран"})")
-        return try {
-            val battery = link.readBattery()
-            batteryLog.record(battery, Instant.now())
-            current.update { it.copy(stage = ConnectionStage.Connected, battery = battery) }
-            applyHeartRateMeasurementInterval()
-            null
-        } catch (e: IOException) {
-            close()
-            ConnectionProblem.LinkFailed(e.message ?: e.toString())
+        return readStatus(band)
+    }
+
+    private suspend fun readStatus(band: Band): ConnectionProblem? = try {
+        ensureCurrentBand(band)
+        val battery = link.readBattery()
+        val reportedSettings = link.readHeartRateSettings()
+        ensureCurrentBand(band)
+        battery?.let { batteryLog.record(it, Instant.now()) }
+        current.update {
+            it.copy(stage = ConnectionStage.Connected, battery = battery, reportedHeartRateSettings = reportedSettings)
+        }
+        applyHeartRateMeasurementInterval()
+        null
+    } catch (e: IOException) {
+        close()
+        ConnectionProblem.LinkFailed(e.message ?: e.toString())
+    }
+
+    private suspend fun ensureCurrentBand(band: Band) {
+        currentCoroutineContext().ensureActive()
+        if (repository.band.value?.credentials != band.credentials || !isOpen) {
+            throw IOException("привязка или соединение изменились во время подключения")
         }
     }
 
     private suspend fun applyHeartRateMeasurementInterval() {
-        val interval = repository.band.value?.heartRateMeasurementInterval ?: return
+        val band = repository.band.value ?: return
+        if (!band.credentials.protocol.canWriteMeasurementInterval) return
+        val interval = band.heartRateMeasurementInterval ?: return
         try {
             link.writeHeartRateMeasurementInterval(interval)
             Log.i(TAG, "частота пульса записана в браслет: $interval")
@@ -154,9 +198,14 @@ class SingleBandConnection(
         val previous = knownBand
         knownBand = band
         when {
-            band?.credentials != previous?.credentials -> current.value = ConnectionState(stage = current.value.stage)
+            band?.credentials != previous?.credentials -> sessionMutex.withLock {
+                val shouldReconnect = isOpen && isUserSession && band != null
+                if (isOpen) close()
+                current.value = ConnectionState(stage = current.value.stage)
+                if (shouldReconnect) open(isBackground = false)?.let(::fail)
+            }
             band?.heartRateMeasurementInterval != previous?.heartRateMeasurementInterval && isOpen ->
-                applyHeartRateMeasurementInterval()
+                sessionMutex.withLock { if (isOpen) applyHeartRateMeasurementInterval() }
         }
     }
 

@@ -21,19 +21,26 @@ import ru.kardiomonitor.platform.ui.SectionCard
 import ru.kardiomonitor.platform.ui.StatTile
 import ru.kardiomonitor.platform.ui.StepsChart
 import java.time.LocalDate
+import java.time.ZoneId
 
 /** Точка входа слайса «Итоги дня»: навигация по дням, итоги, график пульса и шаги по часам. */
 @Composable
-fun DailySummarySection(history: ActivityHistory, modifier: Modifier = Modifier) {
-    val viewModel = viewModel { DailySummaryViewModel(history) }
+fun DailySummarySection(
+    history: ActivityHistory,
+    timeZone: ZoneId = ZoneId.systemDefault(),
+    modifier: Modifier = Modifier,
+    dayContent: @Composable (LocalDate) -> Unit = {},
+) {
+    val viewModel = viewModel(key = timeZone.id) { DailySummaryViewModel(history, timeZone) }
     val state by viewModel.state.collectAsStateWithLifecycle()
-    DailySummaryContent(state, onShowDay = viewModel::showDay, modifier = modifier)
+    DailySummaryContent(state, onShowDay = viewModel::showDay, dayContent = dayContent, modifier = modifier)
 }
 
 @Composable
 private fun DailySummaryContent(
     state: DailySummaryUiState,
     onShowDay: (LocalDate) -> Unit,
+    dayContent: @Composable (LocalDate) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -45,6 +52,7 @@ private fun DailySummaryContent(
             }
         }
         SummaryCard(state.summary)
+        dayContent(state.day)
         SectionCard("Пульс, уд/мин") { HeartRateChart(state.heartRatePoints) }
         SectionCard("Шаги по часам") { StepsChart(state.hourlySteps) }
     }

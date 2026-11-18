@@ -25,7 +25,7 @@ internal class StepsTodayViewModel(connection: BandConnection, private val sourc
     val stepsToday: StateFlow<StepCount?> = connection.state
         .map { it.isConnected }
         .distinctUntilChanged()
-        .flatMapLatest { isConnected -> if (isConnected) followSteps() else flowOf(null) }
+        .flatMapLatest { isConnected -> if (isConnected && source.monitoringUnavailableReason == null) followSteps() else flowOf(null) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), null)
 
     private fun followSteps(): Flow<StepCount?> = source.stepsToday()

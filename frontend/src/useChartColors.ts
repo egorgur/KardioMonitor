@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 
 export interface ChartColors {
   heart: string;
+  heartLine: string;
+  trainingZone: string;
   steps: string;
   grid: string;
   axis: string;
@@ -13,6 +15,8 @@ function readColors(): ChartColors {
   const token = (name: string) => style.getPropertyValue(name).trim();
   return {
     heart: token("--heart"),
+    heartLine: token("--heart-line"),
+    trainingZone: token("--training-zone"),
     steps: token("--steps"),
     grid: token("--grid"),
     axis: token("--text-muted"),

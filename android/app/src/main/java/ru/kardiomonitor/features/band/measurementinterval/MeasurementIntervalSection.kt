@@ -50,11 +50,13 @@ private fun MeasurementIntervalContent(
         state.status?.let {
             Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Text(
-            "Mi Fitness при подключении к браслету может вернуть свою настройку — " +
-                "приложение повторно записывает выбранную частоту при каждом подключении.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        if (state.choices.isNotEmpty()) {
+            Text(
+                "Mi Fitness при подключении к браслету может вернуть свою настройку — " +
+                    "приложение повторно записывает выбранную частоту при каждом подключении.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }

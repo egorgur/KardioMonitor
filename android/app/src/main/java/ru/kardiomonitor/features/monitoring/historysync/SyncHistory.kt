@@ -3,9 +3,11 @@ package ru.kardiomonitor.features.monitoring.historysync
 import android.util.Log
 import kotlinx.coroutines.withTimeoutOrNull
 import ru.kardiomonitor.features.band.api.BandConnection
+import ru.kardiomonitor.features.band.api.BandPairing
 import ru.kardiomonitor.features.monitoring.domain.ActivityHistory
 import ru.kardiomonitor.features.monitoring.domain.ActivitySource
 import ru.kardiomonitor.features.monitoring.domain.HistorySyncStart
+import ru.kardiomonitor.features.monitoring.domain.HistorySyncEvents
 import ru.kardiomonitor.features.monitoring.domain.LastSync
 import ru.kardiomonitor.features.monitoring.domain.SyncSettings
 import java.io.IOException
@@ -28,15 +30,18 @@ internal sealed interface SyncResult {
 
 /**
  * Синхронизация истории: в сеансе связи выгрузить минуты с браслета начиная с
- * [HistorySyncStart] и сохранить в [ActivityHistory]. Итог записывается в [SyncSettings].
+ * [HistorySyncStart] (не раньше привязки браслета — [BandPairing]) и сохранить в
+ * [ActivityHistory]. Итог записывается в [SyncSettings].
  * Вызывается кнопкой и [HistorySyncWorker].
  */
 internal class SyncHistory(
     private val connection: BandConnection,
+    private val pairing: BandPairing,
     private val source: ActivitySource,
     private val history: ActivityHistory,
     private val settings: SyncSettings,
     private val clock: Clock = Clock.systemDefaultZone(),
+    private val events: HistorySyncEvents = HistorySyncEvents.None,
 ) {
     suspend operator fun invoke(
         isBackground: Boolean,
@@ -44,16 +49,27 @@ internal class SyncHistory(
         onProgress: (minutesReceived: Int) -> Unit = {},
     ): SyncResult {
         val result = try {
-            val minutes = withTimeoutOrNull(timeout) { inSession(isBackground) { downloadNewMinutes(onProgress) } }
-                ?: throw IOException("синхронизация не уложилась в $timeout")
-            SyncResult.Downloaded(minutes)
-        } catch (e: IOException) {
-            Log.w(TAG, "синхронизация не удалась", e)
-            SyncResult.Failed(e.message ?: e.toString())
+            tryDownload(isBackground, timeout, onProgress)
+        } finally {
+            events.publishAttemptCompleted()
         }
         Log.i(TAG, "синхронизация (${if (isBackground) "фон" else "экран"}): ${result.summary}")
         settings.recordSync(LastSync(clock.instant(), result.summary, isBackground))
         return result
+    }
+
+    private suspend fun tryDownload(
+        isBackground: Boolean,
+        timeout: Duration,
+        onProgress: (Int) -> Unit,
+    ): SyncResult = try {
+        source.monitoringUnavailableReason?.let { throw IOException(it) }
+        val minutes = withTimeoutOrNull(timeout) { inSession(isBackground) { downloadNewMinutes(onProgress) } }
+            ?: throw IOException("синхронизация не уложилась в $timeout")
+        SyncResult.Downloaded(minutes)
+    } catch (e: IOException) {
+        Log.w(TAG, "синхронизация не удалась", e)
+        SyncResult.Failed(e.message ?: e.toString())
     }
 
     /** Фон подключается сам (ADR-0003); с экрана — только через соединение, открытое пользователем. */
@@ -61,7 +77,8 @@ internal class SyncHistory(
         if (isBackground) connection.withSession(isBackground = true, block) else connection.withOpenSession(block)
 
     private suspend fun downloadNewMinutes(onProgress: (Int) -> Unit): Int {
-        val start = HistorySyncStart.after(history.lastRecordedMinute(), ZonedDateTime.now(clock))
+        val start = HistorySyncStart.after(history.lastRecordedMinute(), pairing.pairedAt(), ZonedDateTime.now(clock))
+        Log.i(TAG, "выгрузка истории с $start")
         val minutes = source.minutesSince(start, onProgress)
         history.save(minutes)
         return minutes.size

@@ -12,9 +12,11 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ru.kardiomonitor.features.band.api.BandConnection
+import ru.kardiomonitor.features.band.api.BandPairing
 import ru.kardiomonitor.features.monitoring.domain.ActivityHistory
 import ru.kardiomonitor.features.monitoring.domain.ActivitySource
 import ru.kardiomonitor.features.monitoring.domain.SyncSettings
+import ru.kardiomonitor.features.monitoring.domain.HistorySyncEvents
 import ru.kardiomonitor.platform.ui.SectionCard
 
 /**
@@ -24,13 +26,19 @@ import ru.kardiomonitor.platform.ui.SectionCard
 @Composable
 fun HistorySyncSection(
     connection: BandConnection,
+    pairing: BandPairing,
     source: ActivitySource,
     history: ActivityHistory,
     settings: SyncSettings,
+    events: HistorySyncEvents = HistorySyncEvents.None,
     modifier: Modifier = Modifier,
 ) {
     val viewModel = viewModel {
-        HistorySyncViewModel(connection, SyncHistory(connection, source, history, settings), settings)
+        HistorySyncViewModel(
+            connection,
+            SyncHistory(connection, pairing, source, history, settings, events = events),
+            settings,
+        )
     }
     val state by viewModel.state.collectAsStateWithLifecycle()
     HistorySyncContent(

@@ -29,7 +29,11 @@
 | **Мониторинг** | `features.monitoring` | Основной (core) | Минуты активности, пульс, шаги, итоги дня, синхронизация истории, пульс сейчас |
 | **Браслет** | `features.band` | Поддерживающий | Учётные данные браслета, сеанс связи, настройки браслета, заряд |
 | **Протокол Huami** | `platform.huami` | Общий, за антикоррупционным слоем | Байты, шифрование, UUID, команды Mi Band 6 |
-| *Реабилитация* (план) | `features.rehab` | Основной | Целевые зоны пульса, тренировки, предупреждения |
+| **Протокол Xiaomi** | `platform.xiaomi`, `:band-protocol` | Отдельный ACL, только проверенные read-only операции | RFCOMM/SPP, auth, заряд, GET settings; exact M2345B1 / 2.3.98 guard |
+| **Маршрутизация браслета** | `platform.band` | Общий владелец портов | Явный BandProtocol, один драйвер для BandLink/ActivitySource; без fallback |
+| **Реабилитация** | `features.rehab` | Основной | Версии программы и норм, классификация тренировочных минут, локальный прогресс |
+| **Оповещения** | `features.alerts` | Основной | Локальный журнал, получение по курсору, системные уведомления и список пациента |
+| **Напоминания** | `features.reminders` | Основной | Локальные настройки пациента, правила условий, расписание и системные уведомления |
 | **Обмен с клиникой** | `features.clinic` | Поддерживающий | Регистрация телефона на сервере клиники, отправка истории и «пульса сейчас» врачу (демо — через ngrok, сервер — `../backend`) |
 
 Протокол Huami — чужая модель (байты, коды команд, «kind=115»). Он **никогда не
@@ -48,8 +52,11 @@ ru.kardiomonitor/
     ble/                      #   GattClient — очередь GATT-операций на корутинах, withResponseTimeout
     huami/                    #   Протокол Mi Band 6: Auth2021, EcdhB163, Chunked*, MiBand6;
                               #   ACL-адаптер HuamiBand (реализует BandLink и ActivitySource)
+    xiaomi/                   #   XiaomiBand: read-only ACL к общему Xiaomi core, без history/live/SET
+    band/                     #   BandDriver, ProtocolBandRouter: явный протокол и общий session owner
     db/                       #   KardioDatabase: SQLiteOpenHelper, миграции схемы
     http/                     #   JsonHttpClient — JSON по HTTP без библиотек (ADR-0006), HttpProblemException
+    keystore/                 #   AES-256-GCM для секретов пациента, ключ в Android Keystore (ADR-0012)
     ui/                       #   Тема, карточки (SectionCard, StatTile), графики (без бизнес-логики)
   features/
     band/                     # Контекст «Браслет»
@@ -58,7 +65,7 @@ ru.kardiomonitor/
                               #   BatteryLog, BandLink (канал связи — реализует ACL)
       api/                    #   Опубликованный API контекста: BandConnection (порт сеанса связи),
                               #   ConnectionState, SessionUnavailableException
-      data/                   #   SharedPreferencesBandRepository, SqliteBatteryLog
+      data/                   #   SharedPreferencesBandRepository (ключ через Keystore), SqliteBatteryLog
       pairing/                #   Слайс: привязка браслета (PairingScreen) и смена (ChangeBandButton)
       connection/             #   Слайс: подключение/отключение, статус, заряд (ConnectionSection);
                               #   SingleBandConnection — реализация BandConnection для app
@@ -67,23 +74,45 @@ ru.kardiomonitor/
       domain/                 #   HeartRate, StepCount, Intensity, ActivityMinute, ActivityKind, DailySummary,
                               #   HistorySyncStart, LastSync; порты ActivityHistory, SyncSettings,
                               #   ActivitySource (данные браслета — реализует ACL)
+                      api/                    #   ActivityHistoryRefresh — короткое фоновое обновление для других контекстов
       data/                   #   SqliteActivityHistory, SharedPreferencesSyncSettings
       historysync/            #   Слайс: синхронизация истории (кнопка + HistorySyncWorker)
-      liveheartrate/          #   Слайс: пульс сейчас
+      liveheartrate/          #   Слайс: ручной пульс сейчас и ТР-09 — запрос, outbox, foreground Worker
       stepstoday/             #   Слайс: шаги за сегодня с браслета (в карточке подключения)
       dailysummary/           #   Слайс: итоги дня, графики, навигация по дням
     clinic/                   # Контекст «Обмен с клиникой»
-      domain/                 #   ServerAddress, PatientName, UploadToken, ServerRegistration, MinuteReport,
-                              #   LiveHeartRateReport, UploadReceipt; порты ClinicServer, ServerRegistrationRepository
-      data/                   #   HttpClinicServer + ClinicJson (контракт API v1), SharedPreferencesServerRegistrationRepository
+      domain/                 #   ServerAddress, PatientName, EnrollmentCode, UploadToken, ServerRegistration,
+              #   MinuteReport, LiveHeartRateReport; порты ClinicServer, ClinicEnrollment
+      data/                   #   HttpClinicServer + ClinicJson (API v1), регистрация (токен через Keystore)
+      enrollment/             #   Слайс: обмен кода QR v2 на регистрацию пациента
       registration/           #   Слайс: регистрация на сервере по адресу и имени (ServerRegistrationSection)
       minuteupload/           #   Слайс: отправка новых минут после каждого пополнения истории (MinuteUploader + секция)
       liveheartrateshare/     #   Слайс: отправка «пульса сейчас» во время измерения (LiveHeartRateSharing)
+    rehab/                    # Контекст «Реабилитация»
+      domain/                 #   План, версии, этапы, нормы, RehabActivityMinute, дневной и общий прогресс
+      data/                   #   Patient-owned JSON-кэш плана в SharedPreferences
+      plansync/               #   Слайс: загрузка GET /api/v1/me/rehab-plan и обновление кэша
+      progress/               #   Слайс: общий прогресс и норма выбранного дня; ACL из ActivityMinute
+    alerts/                   # Контекст «Оповещения»
+      domain/                 #   PatientAlert, журнал, уведомитель и статус синхронизации
+      api/                    #   Опубликованное управление синхронизацией и тексты пациенту
+      data/                   #   Пациентский JSON-журнал и курсор GET /api/v1/me/alerts
+      alertsync/              #   Слайс: загрузка страниц и системные уведомления Android
+      list/                   #   Слайс: список, ручное обновление и разрешение уведомлений
+    reminders/                # Контекст «Напоминания»
+      domain/                 #   Настройки, дневные факты и чистые правила трёх видов
+      api/                    #   Действия системного уведомления
+      data/                   #   Локальный JSON настроек и фактов показов
+      remindercheck/          #   Слайс: обновление истории, Worker и системные уведомления
+      settings/               #   Слайс: настройки пациента и «не напоминать сегодня»
 ```
 
 Браслет виден контекстам через порты на их языке: `BandLink` (контекст «Браслет») и
-`ActivitySource` («Мониторинг»). Оба реализует один объект ACL — `platform.huami.HuamiBand`,
-единственный владелец GATT-соединения. `ActivitySource` работает только при открытом соединении:
+`ActivitySource` («Мониторинг»). Оба реализует один `platform.band.ProtocolBandRouter`,
+который выбирает `HuamiBand` (BLE) или `XiaomiBand` (SPP) по сохранённому protocol.
+Один драйвер владеет обоими портами, fallback после ошибки запрещён (ADR-0014).
+`ActivitySource` работает только при открытом соединении; непроверенный Band 9 monitoring
+отклоняется ещё до фонового подключения и не возвращает sample/нули как полную историю:
 
 - выгрузка истории — внутри сеанса: `withSession` (фон, подключается сам) или `withOpenSession`
   (с экрана, соединение не открывает) — сеанс гарантирует одно соединение и очередь (ADR-0003);
@@ -97,8 +126,39 @@ ru.kardiomonitor/
   с экрана и из фона) и переводит `ActivityMinute` в `MinuteReport` — язык API сервера;
 - слайс `liveheartrateshare` подписан на `LiveHeartRateFeed` («пульс сейчас измерен»): значения
   публикует слайс `liveheartrate`, второе измерение не запускается;
+- ТР-09: `HistorySyncEvents` публикуется после каждой попытки синхронизации, а слайс
+  `monitoring.liveheartrate` через `ClinicServer` забирает запрос, устойчиво хранит запрос и
+  упорядоченный outbox, затем запускает один `connectedDevice` foreground Worker. Ручной и
+  клинический режимы используют один `LiveHeartRateMeasurement` и общий `BandConnection`;
 - домен и `data` клиники не импортируют чужой домен (правила ниже), поэтому у клиники свои
   типы того, что уходит на сервер; перевод — в слайсах. Контракт — `backend/docs/api-contract.md`.
+
+Реабилитация получает план через порт `ClinicServer`, но хранит и считает его на своём языке.
+Слайс `rehab.progress` переводит `monitoring.domain.ActivityMinute` в минимальный
+`RehabActivityMinute`; домены контекстов друг друга не импортируют. История запрашивается по
+IANA-часовому поясу плана, поэтому границы суток корректны при DST. `RehabPlanSynchronizer`
+подписан на регистрацию и изменения истории; сетевой сбой оставляет последний кэш доступным.
+
+Оповещения получает отдельный контекст `features.alerts`. `PatientAlertSynchronizer` выбирает
+журнал владельца телефона при изменении регистрации и читает `GET /api/v1/me/alerts` после
+успешной отправки минут. Курсор и идентификаторы уже показанных системных уведомлений сохраняются
+вместе с журналом: продлённый сервером эпизод обновляет строку, но не уведомляет второй раз.
+Контекст клиники публикует только `ClinicSyncEvents`, поэтому слайсы друг друга не вызывают.
+HTTP-адаптер на каждой странице передаёт повторяемый `supported_kinds` со всеми пятью известными
+видами: `high_heart_rate`, `daily_target_missed`, `daily_target_met`, `low_activity`,
+`training_minutes_exceeded`. Без параметра сервер оставляет прежние четыре вида старым клиентам.
+Разбор пропускает неизвестные будущие виды до чтения их полей, но сохраняет курсор и `has_more`
+всей страницы: даже пустой после фильтрации список не завершает пагинацию раньше времени.
+`training_minutes_exceeded` переводится из `PhoneAlertReport` в дневной снимок `PatientAlert`:
+минуты и порог первого превышения хранит сервер, телефон не рассчитывает превышение и не меняет
+снимок при изменении локальной истории или плана. Список и системный канал используют общие
+`PatientAlertText`: день пациента, фактические минуты и сохранённый порог.
+
+Напоминания полностью локальны и не зависят от сервера. `ReminderWorker` запускается WorkManager
+раз в 15 минут без разрешения точных будильников и перед условием вызывает опубликованный порт
+`ActivityHistoryRefresh`: если браслет недоступен, правила используют уже сохранённую историю.
+Слайс переводит минуты мониторинга и результат нормы реабилитации в минимальные ACL-типы своего
+домена. WorkManager восстанавливает периодическую работу после перезагрузки и смены часового пояса.
 
 Тесты лежат в `src/test/java/ru/kardiomonitor/<тот же путь>` — рядом с кодом слайса
 по пакету.
@@ -142,7 +202,7 @@ app ──► features.*.<slice> ──► features.*.domain ◄── features.
 | Слайс `features.X.<slice>` | домен своего контекста, `features.Y.api`, `features.Y.domain` (только типы), `platform.ui` | **другие слайсы**, любые `features.*.data` (реализации создаёт `app`), `platform.*` кроме `ui` |
 | `features.X.data` | домен своего контекста, `platform.db`, Android | слайсы, другие контексты, UI |
 | `features.X.api` | домен своего контекста | слайсы, `data`, `platform`, Android |
-| `platform.*` | Android, библиотеки, доменные типы (только в ACL-адаптере `platform.huami`); `platform.http` — без доменных типов | слайсы |
+| `platform.*` | Android, библиотеки, доменные типы band/monitoring (только в ACL `platform.huami`, `platform.xiaomi`, `platform.band`); `platform.http` — без доменных типов | слайсы |
 | `app` | всё — это композиционный корень | — |
 
 Ключевые следствия:
@@ -198,8 +258,11 @@ app ──► features.*.<slice> ──► features.*.domain ◄── features.
   ([ADR-0005](adr/0005-architecture-tests-without-library.md)), входят в `testDebugUnitTest`:
   - `DependencyRulesTest` — таблица выше: домен без Android и платформы, слайсы не
     импортируют слайсы и `data`, `api` — только свой домен, платформа не знает о слайсах;
-  - `CodeRulesTest` — пустые суффиксы имён, файл ≤ 300 строк, без `runCatching`,
-    `GlobalScope`, `!!`, `*`-импортов, `Color(0x…)` в контекстах; имена тестов.
+    публичное в слайсе — только точка входа (объявление верхнего уровня, которое использует
+    код вне слайса; остальное — `internal`/`private`);
+  - `CodeRulesTest` — пустые суффиксы имён, файл ≤ 300 строк, функция ≤ 40 строк
+    (`@Composable` ≤ 80), без `runCatching`, `GlobalScope`, `!!`, `*`-импортов,
+    `Color(0x…)` в контекстах; имена тестов.
 
   Падение называет правило и строку. **Тест не ослаблять, чтобы он прошёл**: исправить
   код, а если неверно правило — сначала изменить этот документ с согласия человека.
@@ -209,8 +272,8 @@ app ──► features.*.<slice> ──► features.*.domain ◄── features.
 - **Тесты протокола** с эталонными байтами из Python-реализации (`../huami2021.py`) —
   см. [testing.md](testing.md).
 - **Lint** — `./gradlew lintDebug` без новых ошибок.
-- Пока не автоматизировано (проверяется ревью): функция ≤ 40 строк, «публична только
-  точка входа слайса», бизнес-логика в composable.
+- Не автоматизировано (проверяется ревью, подагент `architecture-reviewer`): бизнес-логика
+  в composable, правила в домене, а не в сценарии, параметров ≤ 6, вложенность ≤ 3.
 
 ## Миграция прототипа (завершена)
 

@@ -28,6 +28,12 @@ class FakeBandConnection(var unavailable: ConnectionProblem? = null) : BandConne
         return block()
     }
 
+    override suspend fun <T> withSessionIf(
+        isBackground: Boolean,
+        isAllowed: () -> Boolean,
+        block: suspend () -> T,
+    ): T? = if (isAllowed()) withSession(isBackground, block) else null
+
     override suspend fun <T> withOpenSession(block: suspend () -> T): T {
         sessions += false
         unavailable?.let { throw SessionUnavailableException(it, "браслет недоступен: $it") }

@@ -10,24 +10,39 @@ import ru.kardiomonitor.features.band.domain.Band
 import ru.kardiomonitor.features.band.domain.BandAddress
 import ru.kardiomonitor.features.band.domain.BandCredentials
 import ru.kardiomonitor.features.band.domain.BandRepository
+import ru.kardiomonitor.features.band.domain.BandProtocol
 import ru.kardiomonitor.features.band.domain.HeartRateMeasurementInterval
+import ru.kardiomonitor.platform.keystore.EncryptedPreferences
+import ru.kardiomonitor.platform.keystore.SecretBox
+import java.io.IOException
+import java.time.Instant
 
 /**
- * Браслет в SharedPreferences (план — Keystore). Файлы и ключи — с прототипа, чтобы привязка
- * на телефоне пациента сохранилась: учётные данные в `band`, частота пульса в `band_settings`.
+ * Браслет в SharedPreferences; ключ зашифрован через Android Keystore. Имена файлов и
+ * открытых полей — с прототипа, чтобы привязка сохранилась. Открытый ключ переносится
+ * в зашифрованное поле при первом чтении. У старой привязки [Band.pairedAt] = null.
  */
-class SharedPreferencesBandRepository(context: Context) : BandRepository {
+class SharedPreferencesBandRepository(context: Context, secretBox: SecretBox) : BandRepository {
     private val credentialsPrefs = context.getSharedPreferences(CREDENTIALS_PREFS, Context.MODE_PRIVATE)
     private val settingsPrefs = context.getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE)
+    private val encryptedCredentials = EncryptedPreferences(credentialsPrefs, secretBox)
     private val current = MutableStateFlow(load())
 
     override val band: StateFlow<Band?> = current.asStateFlow()
 
     override fun save(band: Band) {
-        credentialsPrefs.edit()
+        val encryptedKey = encryptedCredentials.seal(band.credentials.key.hex)
+        val saved = credentialsPrefs.edit()
             .putString(MAC, band.credentials.address.value)
-            .putString(KEY, band.credentials.key.hex)
-            .apply()
+            .putString(PROTOCOL, band.credentials.protocol.wireName)
+            .putString(ENCRYPTED_KEY, encryptedKey)
+            .remove(KEY)
+            .apply {
+                val pairedAt = band.pairedAt
+                if (pairedAt == null) remove(PAIRED_AT) else putLong(PAIRED_AT, pairedAt.toEpochMilli())
+            }
+            .commit()
+        if (!saved) throw IOException("не удалось сохранить привязку браслета")
         val interval = band.heartRateMeasurementInterval
         settingsPrefs.edit().apply {
             if (interval == null) remove(HEART_RATE_INTERVAL) else putInt(HEART_RATE_INTERVAL, interval.toMinutes())
@@ -43,17 +58,21 @@ class SharedPreferencesBandRepository(context: Context) : BandRepository {
 
     private fun load(): Band? {
         val mac = credentialsPrefs.getString(MAC, null) ?: return null
-        val key = credentialsPrefs.getString(KEY, null) ?: return null
         val credentials = try {
-            BandCredentials(BandAddress(mac), AuthKey(key))
-        } catch (e: IllegalArgumentException) {
-            Log.w(TAG, "сохранённые учётные данные браслета повреждены — нужна новая привязка", e)
+            val protocol = BandProtocol.fromStored(credentialsPrefs.getString(PROTOCOL, null)) ?: return null
+            val key = encryptedCredentials.get(ENCRYPTED_KEY, KEY) ?: return null
+            BandCredentials(BandAddress(mac), AuthKey(key), protocol)
+        } catch (e: Exception) {
+            Log.w(TAG, "сохранённая привязка недоступна — нужна новая привязка")
             return null
         }
+        val pairedAt = credentialsPrefs.takeIf { it.contains(PAIRED_AT) }
+            ?.getLong(PAIRED_AT, 0)
+            ?.let(Instant::ofEpochMilli)
         val interval = settingsPrefs.takeIf { it.contains(HEART_RATE_INTERVAL) }
             ?.getInt(HEART_RATE_INTERVAL, 0)
             ?.let(::intervalOf)
-        return Band.restore(credentials, interval)
+        return Band.restore(credentials, pairedAt, interval)
     }
 
     /** Минуты, 0 — выключено: так хранил прототип и так же команда браслету. */
@@ -73,7 +92,10 @@ class SharedPreferencesBandRepository(context: Context) : BandRepository {
         const val CREDENTIALS_PREFS = "band"
         const val SETTINGS_PREFS = "band_settings"
         const val MAC = "mac"
+        const val PROTOCOL = "protocol"
         const val KEY = "key"
+        const val ENCRYPTED_KEY = "key_sealed"
+        const val PAIRED_AT = "paired_at_epoch_ms"
         const val HEART_RATE_INTERVAL = "hr_interval_minutes"
     }
 }

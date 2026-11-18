@@ -30,6 +30,9 @@ interface BandConnection {
      */
     suspend fun <T> withSession(isBackground: Boolean, block: suspend () -> T): T
 
+    /** Проверяет актуальность отложенной работы под замком сеанса, до подключения; иначе null. */
+    suspend fun <T> withSessionIf(isBackground: Boolean, isAllowed: () -> Boolean, block: suspend () -> T): T?
+
     /**
      * Выполняет [block] в уже открытом сеансе — по очереди с другими сценариями; соединение не
      * открывает (действие пользователя на экране подключённого браслета).

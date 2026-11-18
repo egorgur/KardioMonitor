@@ -35,7 +35,11 @@ class MainActivity : ComponentActivity() {
                 val band by container.bandRepository.band.collectAsStateWithLifecycle()
                 Scaffold(Modifier.fillMaxSize()) { padding ->
                     if (band == null) {
-                        PairingScreen(container.bandRepository, container.bandConnection, Modifier.padding(padding))
+                        PairingScreen(
+                            container.bandRepository,
+                            container.clinicEnrollment,
+                            Modifier.padding(padding),
+                        )
                     } else {
                         DashboardScreen(container, Modifier.padding(padding))
                     }

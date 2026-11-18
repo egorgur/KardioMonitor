@@ -3,6 +3,7 @@ package ru.kardiomonitor.features.monitoring.domain
 import kotlinx.coroutines.flow.Flow
 import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 
 /**
  * История активности — все сохранённые минуты. Одна запись на минуту: повторная выгрузка
@@ -14,8 +15,15 @@ interface ActivityHistory {
 
     suspend fun save(minutes: List<ActivityMinute>)
 
-    /** Минуты календарного дня [day] в часовом поясе телефона, по порядку. */
-    suspend fun minutesOf(day: LocalDate): List<ActivityMinute>
+    /** Минуты календарного дня [day] в указанном часовом поясе, по порядку. */
+    suspend fun minutesOf(day: LocalDate, timeZone: ZoneId = ZoneId.systemDefault()): List<ActivityMinute>
+
+    /** Минуты включительного диапазона дней, сгруппированные в указанном часовом поясе. */
+    suspend fun minutesBetween(
+        firstDay: LocalDate,
+        lastDay: LocalDate,
+        timeZone: ZoneId,
+    ): Map<LocalDate, List<ActivityMinute>>
 
     /** Начало последней сохранённой минуты; null — история пуста. */
     suspend fun lastRecordedMinute(): Instant?

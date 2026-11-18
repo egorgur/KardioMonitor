@@ -10,6 +10,9 @@ import java.time.ZoneId
 interface ClinicServer {
     suspend fun register(address: ServerAddress, name: PatientName, timeZone: ZoneId): ServerRegistration
 
+    /** Обменивает код на токен; null — код неизвестен, уже использован или истёк. */
+    suspend fun enroll(address: ServerAddress, code: EnrollmentCode): ServerRegistration?
+
     /** Начало последней минуты, которую сервер уже принял; null — ещё ни одной. */
     suspend fun lastUploadedMinute(registration: ServerRegistration): Instant?
 
@@ -17,4 +20,17 @@ interface ClinicServer {
     suspend fun uploadMinutes(registration: ServerRegistration, minutes: List<MinuteReport>): UploadReceipt
 
     suspend fun sendLiveHeartRate(registration: ServerRegistration, report: LiveHeartRateReport)
+
+    suspend fun rehabPlan(registration: ServerRegistration): PhoneRehabPlanReport
+
+    suspend fun patientAlerts(registration: ServerRegistration, after: Long): PhoneAlertFeed
+
+    /** null — клиника не ждёт непрерывного измерения от этого телефона. */
+    suspend fun activeLiveHeartRateRequest(registration: ServerRegistration): PhoneLiveHeartRateRequest?
+
+    suspend fun reportLiveHeartRateRequestStatus(
+        registration: ServerRegistration,
+        requestId: String,
+        report: LiveHeartRateRequestStatusReport,
+    ): PhoneLiveHeartRateRequest
 }

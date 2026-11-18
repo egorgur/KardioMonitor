@@ -1,5 +1,6 @@
 """Провайдер dishka: engine на всё приложение, сессия и транзакция на запрос (ADR-0005)."""
 
+import logging
 from collections.abc import AsyncIterator
 
 from dishka import Provider, Scope, provide
@@ -25,7 +26,7 @@ class DatabaseProvider(Provider):
 
     @provide(scope=Scope.APP)
     async def engine(self) -> AsyncIterator[AsyncEngine]:
-        engine = create_async_engine(self._database_url)
+        engine = create_engine(self._database_url)
         if engine.dialect.name == "sqlite":
             event.listen(engine.sync_engine, "connect", _configure_sqlite)
         yield engine
@@ -54,3 +55,14 @@ def _configure_sqlite(connection: DBAPIConnection, _record: ConnectionPoolEntry)
     cursor.execute("PRAGMA foreign_keys=ON")
     cursor.execute("PRAGMA journal_mode=WAL")
     cursor.close()
+
+
+def create_engine(database_url: str) -> AsyncEngine:
+    """Engine, который не выдаёт параметры запросов — ФИО, диагноз, хеши паролей — ни в журнал,
+    ни в текст ошибок базы, при любом уровне журнала (ТР-07, п. 5; coding-rules §13).
+
+    `hide_parameters` — для журнала SQLAlchemy и исключений; aiosqlite на уровне DEBUG пишет
+    запросы с параметрами сам.
+    """
+    logging.getLogger("aiosqlite").setLevel(logging.INFO)
+    return create_async_engine(database_url, hide_parameters=True)

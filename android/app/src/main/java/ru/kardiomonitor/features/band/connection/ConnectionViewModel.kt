@@ -14,6 +14,7 @@ import ru.kardiomonitor.features.band.domain.ConnectionStage
 
 /** Состояние секции подключения. */
 internal data class ConnectionUiState(
+    val model: String = "Браслет",
     val title: String = "",
     val stage: ConnectionStage = ConnectionStage.Disconnected,
     val battery: String = "—",
@@ -38,6 +39,7 @@ internal class ConnectionViewModel(
     fun dismissProblem() = connection.dismissProblem()
 
     private fun toUiState(band: Band?, connectionState: ConnectionState) = ConnectionUiState(
+        model = band?.credentials?.protocol?.label ?: "Браслет",
         title = "${band?.credentials?.address?.value.orEmpty()} · ${connectionState.stage.text()}",
         stage = connectionState.stage,
         battery = connectionState.battery?.let { "${it.percent} %" } ?: "—",

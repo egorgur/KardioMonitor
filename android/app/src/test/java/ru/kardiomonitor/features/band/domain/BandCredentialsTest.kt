@@ -14,6 +14,12 @@ class BandCredentialsTest {
     }
 
     @Test
+    fun `поля QR-кода после ключа не мешают распознать адрес и ключ`() {
+        val withFutureFields = "kardio;E7:19:F3:6C:04:9E;00112233445566778899aabbccddeeff;s=https://kardio.example;e=K7Q-2M9"
+        assertEquals(expected, BandCredentials.parse(withFutureFields))
+    }
+
+    @Test
     fun `ключ с префиксом 0x находится среди произвольного текста`() {
         assertEquals(expected, BandCredentials.parse("MAC: E7:19:F3:6C:04:9E\nKey: 0x00112233445566778899aabbccddeeff"))
     }

@@ -13,4 +13,4 @@ dependencyResolutionManagement {
     }
 }
 rootProject.name = "KardioMonitor"
-include(":app")
+include(":app", ":band-protocol", ":architecture", ":staff")

@@ -1,5 +1,32 @@
-import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { type DailySummary, type DayMinute, type PatientOverview, api } from "./api";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Line,
+  LineChart,
+  ReferenceArea,
+  ResponsiveContainer,
+  Scatter,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { DayTargetCard } from "./DayTargetCard";
+import {
+  type DailySummary,
+  type DayMinute,
+  type HeartRateBand,
+  type PatientOverview,
+  type TrainingHeartRateZone,
+  api,
+} from "./api";
+import {
+  HEART_RATE_BAND_COLORS,
+  bandIntersectsZone,
+  heartRateBandIndex,
+  heartRateBandLabel,
+} from "./heartRateBands";
 import { HEART_RATE_DOMAIN, hourIn } from "./time";
 import { useChartColors } from "./useChartColors";
 import { usePolling } from "./usePolling";
@@ -21,20 +48,31 @@ export function DayView({ patient, day, isToday }: Props) {
     isToday ? TODAY_POLL_MS : PAST_DAY_POLL_MS,
     [patient.patient_id, day],
   );
+  const targetResult = usePolling(
+    () => api.dayTargetProgress(patient.patient_id, day),
+    isToday ? TODAY_POLL_MS : PAST_DAY_POLL_MS,
+    [patient.patient_id, day],
+  );
   if (!result.data) return <p className="muted">{result.error ? result.error.message : "Загрузка дня…"}</p>;
-  const { summary, minutes } = result.data;
+  const { summary, heart_rate_distribution, minutes } = result.data;
+  const trainingZone = targetResult.data?.progress?.targets.training_zone ?? null;
   if (summary.recorded_minutes === 0) {
     return (
-      <article className="card empty">
-        За этот день телефон ещё не присылал историю. Синхронизируйте браслет в приложении — минуты
-        появятся здесь автоматически.
-      </article>
+      <>
+        <DayTargetCard target={targetResult.data} error={targetResult.error} />
+        <article className="card empty">
+          За этот день телефон ещё не присылал историю. Синхронизируйте браслет в приложении — минуты
+          появятся здесь автоматически.
+        </article>
+      </>
     );
   }
   return (
     <>
+      <DayTargetCard target={targetResult.data} error={targetResult.error} />
       <SummaryTiles summary={summary} />
-      <HeartRateChart minutes={minutes} timeZone={patient.time_zone} />
+      <HeartRateDistribution bands={heart_rate_distribution} trainingZone={trainingZone} />
+      <HeartRateChart minutes={minutes} timeZone={patient.time_zone} trainingZone={trainingZone} />
       <StepsChart minutes={minutes} timeZone={patient.time_zone} />
     </>
   );
@@ -73,19 +111,107 @@ function minuteOfDay(iso: string, timeZone: string): number {
 
 const hourLabel = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, "0")}:00`;
 
-function HeartRateChart({ minutes, timeZone }: { minutes: DayMinute[]; timeZone: string }) {
+function HeartRateDistribution({
+  bands,
+  trainingZone,
+}: {
+  bands: HeartRateBand[];
+  trainingZone: TrainingHeartRateZone | null;
+}) {
+  const maxMinutes = Math.max(1, ...bands.map((band) => band.minutes));
+  const measuredMinutes = bands.reduce((total, band) => total + band.minutes, 0);
+
+  return (
+    <article className="card heart-rate-distribution" aria-labelledby="heart-rate-distribution-title">
+      <div className="chart-heading">
+        <div>
+          <h3 className="chart-title" id="heart-rate-distribution-title">
+            Время в интервалах пульса
+          </h3>
+          <p className="chart-subtitle">{measuredMinutes.toLocaleString("ru-RU")} мин с измеренным пульсом</p>
+        </div>
+        {trainingZone && (
+          <span className="training-zone-label">
+            Целевая зона {trainingZone.lower_bpm}–{trainingZone.upper_bpm}
+          </span>
+        )}
+      </div>
+      <ul className="distribution-list">
+        {bands.map((band, index) => {
+          const label = heartRateBandLabel(band);
+          const inTrainingZone = bandIntersectsZone(band, trainingZone);
+          return (
+            <li className={inTrainingZone ? "is-training-zone" : undefined} key={label}>
+              <span className="distribution-range">{label}</span>
+              <span className="distribution-track" aria-hidden>
+                <span
+                  className="distribution-fill"
+                  style={{
+                    backgroundColor: HEART_RATE_BAND_COLORS[index] ?? HEART_RATE_BAND_COLORS[0],
+                    width: `${(band.minutes / maxMinutes) * 100}%`,
+                  }}
+                />
+              </span>
+              <span className="distribution-value" aria-label={`${label} ударов в минуту: ${band.minutes} минут`}>
+                {band.minutes} мин
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </article>
+  );
+}
+
+function HeartRateChart({
+  minutes,
+  timeZone,
+  trainingZone,
+}: {
+  minutes: DayMinute[];
+  timeZone: string;
+  trainingZone: TrainingHeartRateZone | null;
+}) {
   const colors = useChartColors();
   // null — замера не было: линия прерывается, а не соединяет соседние замеры
   const points = minutes.map((minute) => ({ t: minuteOfDay(minute.started_at, timeZone), bpm: minute.heart_rate }));
+  const measuredPoints = points.flatMap((point) =>
+    point.bpm === null ? [] : [{ t: point.t, bpm: point.bpm, band: heartRateBandIndex(point.bpm) }],
+  );
   return (
-    <article className="card">
-      <h3 className="chart-title">Пульс по минутам, уд/мин</h3>
-      <div className="chart">
+    <article className="card" aria-labelledby="heart-rate-chart-title">
+      <div className="chart-heading">
+        <div>
+          <h3 className="chart-title" id="heart-rate-chart-title">
+            Пульс по минутам, уд/мин
+          </h3>
+          <p className="chart-subtitle">Цвет точки соответствует интервалу выше</p>
+        </div>
+      </div>
+      <div
+        className="chart"
+        role="img"
+        aria-label={
+          trainingZone
+            ? `График пульса за сутки. Целевая зона от ${trainingZone.lower_bpm} до ${trainingZone.upper_bpm} ударов в минуту.`
+            : "График пульса за сутки."
+        }
+      >
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={points} margin={{ top: 8, right: 12, bottom: 0, left: -12 }}>
             <CartesianGrid stroke={colors.grid} vertical={false} />
             <XAxis dataKey="t" type="number" domain={[0, 1440]} ticks={HOUR_TICKS.map((h) => h * 60)} tickFormatter={hourLabel} stroke={colors.axis} fontSize={12} tickLine={false} />
             <YAxis domain={HEART_RATE_DOMAIN} stroke={colors.axis} fontSize={12} tickLine={false} axisLine={false} allowDecimals={false} />
+            {trainingZone && (
+              <ReferenceArea
+                y1={trainingZone.lower_bpm}
+                y2={trainingZone.upper_bpm}
+                fill={colors.trainingZone}
+                fillOpacity={0.16}
+                stroke={colors.trainingZone}
+                strokeOpacity={0.5}
+              />
+            )}
             <Tooltip
               formatter={(value) => [`${value} уд/мин`, "Пульс"]}
               labelFormatter={(t) => {
@@ -93,7 +219,15 @@ function HeartRateChart({ minutes, timeZone }: { minutes: DayMinute[]; timeZone:
                 return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
               }}
             />
-            <Line dataKey="bpm" stroke={colors.heart} strokeWidth={2} dot={false} connectNulls={false} isAnimationActive={false} />
+            <Line dataKey="bpm" stroke={colors.heartLine} strokeWidth={1.5} dot={false} connectNulls={false} isAnimationActive={false} />
+            <Scatter data={measuredPoints} dataKey="bpm" isAnimationActive={false}>
+              {measuredPoints.map((point, index) => (
+                <Cell
+                  fill={HEART_RATE_BAND_COLORS[point.band] ?? colors.heart}
+                  key={`${point.t}-${index}`}
+                />
+              ))}
+            </Scatter>
           </LineChart>
         </ResponsiveContainer>
       </div>

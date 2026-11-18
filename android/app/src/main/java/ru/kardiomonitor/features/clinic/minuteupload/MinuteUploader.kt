@@ -13,6 +13,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import ru.kardiomonitor.features.clinic.domain.ClinicServer
+import ru.kardiomonitor.features.clinic.domain.ClinicSyncEvents
 import ru.kardiomonitor.features.clinic.domain.ServerRegistration
 import ru.kardiomonitor.features.clinic.domain.ServerRegistrationRepository
 import ru.kardiomonitor.features.monitoring.domain.ActivityHistory
@@ -39,6 +40,7 @@ class MinuteUploader(
     private val registrations: ServerRegistrationRepository,
     private val history: ActivityHistory,
     private val scope: CoroutineScope,
+    private val syncEvents: ClinicSyncEvents,
     private val clock: Clock = Clock.systemUTC(),
 ) {
     private val uploadNewMinutes = UploadNewMinutes(server, history)
@@ -68,6 +70,7 @@ class MinuteUploader(
         current.update { it.copy(isUploading = true) }
         val outcome = try {
             val sent = uploadNewMinutes(registration)
+            syncEvents.publishMinuteUploadCompleted()
             Log.i(TAG, "отправлено врачу: $sent мин")
             current.value.copy(lastSentMinutes = sent, problem = null)
         } catch (e: IOException) {

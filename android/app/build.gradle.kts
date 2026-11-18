@@ -3,16 +3,25 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+val patientValidation = providers.gradleProperty("patientValidation").orNull == "true"
+if (patientValidation) layout.buildDirectory.set(layout.projectDirectory.dir("build-validation"))
+
 android {
     namespace = "ru.kardiomonitor"
     compileSdk = 36
+    // Контекст из штатного instrumentation runner без новых AndroidX test-зависимостей.
+    useLibrary("android.test.runner")
+    useLibrary("android.test.base")
 
     defaultConfig {
-        applicationId = "ru.kardiomonitor"
+        applicationId = if (patientValidation) "ru.kardiomonitor.patient.validation" else "ru.kardiomonitor"
+        if (patientValidation) testApplicationId = "ru.kardiomonitor.patient.validation.test"
+        manifestPlaceholders["applicationClass"] = if (patientValidation) "android.app.Application" else "ru.kardiomonitor.app.KardioApplication"
         minSdk = 26
         targetSdk = 36
         versionCode = 1
         versionName = "0.1"
+        testInstrumentationRunner = "android.test.InstrumentationTestRunner"
     }
 
     buildFeatures {
@@ -38,6 +47,8 @@ android {
 }
 
 dependencies {
+    implementation(project(":band-protocol"))
+
     val composeBom = platform("androidx.compose:compose-bom:2025.01.01")
     implementation(composeBom)
     implementation("androidx.compose.material3:material3")
@@ -51,6 +62,7 @@ dependencies {
     implementation("androidx.work:work-runtime-ktx:2.10.0")
 
     testImplementation("junit:junit:4.13.2")
+    androidTestImplementation("junit:junit:4.13.2")
     // org.json есть в Android, но в JVM-тестах — заглушки: настоящий — для тестов JSON (ADR-0006)
     testImplementation("org.json:json:20260814")
 }

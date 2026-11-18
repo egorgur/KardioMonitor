@@ -71,6 +71,451 @@
         "title": "ActivityMinuteIn",
         "type": "object"
       },
+      "AdmittedPatientOut": {
+        "additionalProperties": false,
+        "properties": {
+          "enrollment_code": {
+            "title": "Enrollment Code",
+            "type": "string"
+          },
+          "enrollment_code_expires_at": {
+            "format": "date-time",
+            "title": "Enrollment Code Expires At",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "patient_id": {
+            "format": "uuid",
+            "title": "Patient Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "enrollment_code",
+          "enrollment_code_expires_at",
+          "patient_id",
+          "name"
+        ],
+        "title": "AdmittedPatientOut",
+        "type": "object"
+      },
+      "AlertDailyTargetOut": {
+        "additionalProperties": false,
+        "description": "«12 из 30 мин, 6 200 из 10 000 шагов».",
+        "properties": {
+          "steps": {
+            "title": "Steps",
+            "type": "integer"
+          },
+          "target_steps": {
+            "title": "Target Steps",
+            "type": "integer"
+          },
+          "target_training_minutes": {
+            "title": "Target Training Minutes",
+            "type": "integer"
+          },
+          "training_minutes": {
+            "title": "Training Minutes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "training_minutes",
+          "target_training_minutes",
+          "steps",
+          "target_steps"
+        ],
+        "title": "AlertDailyTargetOut",
+        "type": "object"
+      },
+      "AlertFeedOut": {
+        "additionalProperties": false,
+        "description": "Новые и изменённые оповещения после курсора `after`.\n\n`cursor` — передать как `after` при следующей синхронизации. `has_more` — запросить ещё раз\nсразу. Изменённое оповещение (эпизод высокого пульса продлился) приходит снова с тем же\n`alert_id`: телефон обновляет запись и второй раз уведомление не показывает.",
+        "properties": {
+          "alerts": {
+            "items": {
+              "$ref": "#/components/schemas/PhoneAlertOut"
+            },
+            "title": "Alerts",
+            "type": "array"
+          },
+          "cursor": {
+            "title": "Cursor",
+            "type": "integer"
+          },
+          "has_more": {
+            "title": "Has More",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "alerts",
+          "cursor",
+          "has_more"
+        ],
+        "title": "AlertFeedOut",
+        "type": "object"
+      },
+      "AlertHighHeartRateOut": {
+        "additionalProperties": false,
+        "description": "«Пульс до 142 при пороге 130, 6 мин».",
+        "properties": {
+          "duration_minutes": {
+            "title": "Duration Minutes",
+            "type": "integer"
+          },
+          "last_at": {
+            "format": "date-time",
+            "title": "Last At",
+            "type": "string"
+          },
+          "max_heart_rate": {
+            "title": "Max Heart Rate",
+            "type": "integer"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "threshold_bpm": {
+            "title": "Threshold Bpm",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "started_at",
+          "last_at",
+          "duration_minutes",
+          "max_heart_rate",
+          "threshold_bpm"
+        ],
+        "title": "AlertHighHeartRateOut",
+        "type": "object"
+      },
+      "AlertKind": {
+        "enum": [
+          "high_heart_rate",
+          "daily_target_missed",
+          "daily_target_met",
+          "low_activity",
+          "training_minutes_exceeded"
+        ],
+        "title": "AlertKind",
+        "type": "string"
+      },
+      "AlertLowActivityOut": {
+        "additionalProperties": false,
+        "properties": {
+          "steps": {
+            "title": "Steps",
+            "type": "integer"
+          },
+          "threshold_steps": {
+            "title": "Threshold Steps",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "steps",
+          "threshold_steps"
+        ],
+        "title": "AlertLowActivityOut",
+        "type": "object"
+      },
+      "AlertTrainingMinutesExceededOut": {
+        "additionalProperties": false,
+        "properties": {
+          "threshold_minutes": {
+            "title": "Threshold Minutes",
+            "type": "integer"
+          },
+          "training_minutes": {
+            "title": "Training Minutes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "training_minutes",
+          "threshold_minutes"
+        ],
+        "title": "AlertTrainingMinutesExceededOut",
+        "type": "object"
+      },
+      "ClinicianAlertOut": {
+        "additionalProperties": false,
+        "description": "Оповещение пациента врача. Заполнено поле значений своего вида, остальные — null.",
+        "properties": {
+          "alert_id": {
+            "format": "uuid",
+            "title": "Alert Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "daily_target": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AlertDailyTargetOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "day": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day"
+          },
+          "high_heart_rate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AlertHighHeartRateOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "is_viewed": {
+            "title": "Is Viewed",
+            "type": "boolean"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AlertKind"
+          },
+          "low_activity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AlertLowActivityOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "patient_id": {
+            "format": "uuid",
+            "title": "Patient Id",
+            "type": "string"
+          },
+          "training_minutes_exceeded": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AlertTrainingMinutesExceededOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "viewed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Viewed At"
+          }
+        },
+        "required": [
+          "alert_id",
+          "patient_id",
+          "kind",
+          "day",
+          "created_at",
+          "is_viewed",
+          "viewed_at",
+          "high_heart_rate",
+          "daily_target",
+          "low_activity",
+          "training_minutes_exceeded"
+        ],
+        "title": "ClinicianAlertOut",
+        "type": "object"
+      },
+      "ClinicianLiveHeartRateRequestEnvelope": {
+        "additionalProperties": false,
+        "properties": {
+          "request": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ClinicianLiveHeartRateRequestOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "request"
+        ],
+        "title": "ClinicianLiveHeartRateRequestEnvelope",
+        "type": "object"
+      },
+      "ClinicianLiveHeartRateRequestOut": {
+        "additionalProperties": false,
+        "properties": {
+          "duration_minutes": {
+            "title": "Duration Minutes",
+            "type": "integer"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "failure_reason": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LiveHeartRateFailureReason"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "patient_id": {
+            "format": "uuid",
+            "title": "Patient Id",
+            "type": "string"
+          },
+          "request_id": {
+            "format": "uuid",
+            "title": "Request Id",
+            "type": "string"
+          },
+          "requested_at": {
+            "format": "date-time",
+            "title": "Requested At",
+            "type": "string"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "$ref": "#/components/schemas/LiveHeartRateRequestStatus"
+          }
+        },
+        "required": [
+          "request_id",
+          "duration_minutes",
+          "requested_at",
+          "expires_at",
+          "status",
+          "started_at",
+          "finished_at",
+          "failure_reason",
+          "patient_id"
+        ],
+        "title": "ClinicianLiveHeartRateRequestOut",
+        "type": "object"
+      },
+      "ClinicianOut": {
+        "additionalProperties": false,
+        "description": "Вошедший врач: для шапки панели.",
+        "properties": {
+          "clinician_id": {
+            "format": "uuid",
+            "title": "Clinician Id",
+            "type": "string"
+          },
+          "login": {
+            "title": "Login",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "clinician_id",
+          "login",
+          "name"
+        ],
+        "title": "ClinicianOut",
+        "type": "object"
+      },
+      "CreateLiveHeartRateRequestIn": {
+        "additionalProperties": false,
+        "properties": {
+          "duration_minutes": {
+            "default": 10,
+            "maximum": 60.0,
+            "minimum": 1.0,
+            "title": "Duration Minutes",
+            "type": "integer"
+          }
+        },
+        "title": "CreateLiveHeartRateRequestIn",
+        "type": "object"
+      },
+      "CurrentStageOut": {
+        "additionalProperties": false,
+        "properties": {
+          "first_day": {
+            "title": "First Day",
+            "type": "integer"
+          },
+          "last_day": {
+            "title": "Last Day",
+            "type": "integer"
+          },
+          "number": {
+            "title": "Number",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "number",
+          "first_day",
+          "last_day"
+        ],
+        "title": "CurrentStageOut",
+        "type": "object"
+      },
       "DailySummaryOut": {
         "additionalProperties": false,
         "properties": {
@@ -136,6 +581,52 @@
         "title": "DailySummaryOut",
         "type": "object"
       },
+      "DailyTargetsIn": {
+        "additionalProperties": false,
+        "properties": {
+          "steps": {
+            "title": "Steps",
+            "type": "integer"
+          },
+          "training_minutes": {
+            "title": "Training Minutes",
+            "type": "integer"
+          },
+          "training_zone": {
+            "$ref": "#/components/schemas/TrainingZoneIn"
+          }
+        },
+        "required": [
+          "training_zone",
+          "training_minutes",
+          "steps"
+        ],
+        "title": "DailyTargetsIn",
+        "type": "object"
+      },
+      "DailyTargetsOut": {
+        "additionalProperties": false,
+        "properties": {
+          "steps": {
+            "title": "Steps",
+            "type": "integer"
+          },
+          "training_minutes": {
+            "title": "Training Minutes",
+            "type": "integer"
+          },
+          "training_zone": {
+            "$ref": "#/components/schemas/TrainingZoneOut"
+          }
+        },
+        "required": [
+          "training_zone",
+          "training_minutes",
+          "steps"
+        ],
+        "title": "DailyTargetsOut",
+        "type": "object"
+      },
       "DayMinuteOut": {
         "additionalProperties": false,
         "properties": {
@@ -172,6 +663,155 @@
         "title": "DayMinuteOut",
         "type": "object"
       },
+      "DayTargetProgressOut": {
+        "additionalProperties": false,
+        "description": "День вне программы — `program_day` и `progress` null.",
+        "properties": {
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "program_day": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Program Day"
+          },
+          "progress": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TargetProgressOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "day",
+          "program_day",
+          "progress"
+        ],
+        "title": "DayTargetProgressOut",
+        "type": "object"
+      },
+      "DayTargetsOut": {
+        "additionalProperties": false,
+        "properties": {
+          "steps": {
+            "title": "Steps",
+            "type": "integer"
+          },
+          "training_minutes": {
+            "title": "Training Minutes",
+            "type": "integer"
+          },
+          "training_zone": {
+            "$ref": "#/components/schemas/DayTrainingZoneOut"
+          }
+        },
+        "required": [
+          "training_zone",
+          "training_minutes",
+          "steps"
+        ],
+        "title": "DayTargetsOut",
+        "type": "object"
+      },
+      "DayTrainingZoneOut": {
+        "additionalProperties": false,
+        "properties": {
+          "lower_bpm": {
+            "title": "Lower Bpm",
+            "type": "integer"
+          },
+          "upper_bpm": {
+            "title": "Upper Bpm",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "lower_bpm",
+          "upper_bpm"
+        ],
+        "title": "DayTrainingZoneOut",
+        "type": "object"
+      },
+      "EnrolledPhoneOut": {
+        "additionalProperties": false,
+        "description": "Как ответ регистрации: токен показывается один раз.",
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "patient_id": {
+            "format": "uuid",
+            "title": "Patient Id",
+            "type": "string"
+          },
+          "time_zone": {
+            "title": "Time Zone",
+            "type": "string"
+          },
+          "token": {
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "patient_id",
+          "name",
+          "time_zone",
+          "token"
+        ],
+        "title": "EnrolledPhoneOut",
+        "type": "object"
+      },
+      "EnrollmentCodeOut": {
+        "additionalProperties": false,
+        "description": "Код для QR v2 (`e=`): одноразовый, показывается один раз.",
+        "properties": {
+          "enrollment_code": {
+            "title": "Enrollment Code",
+            "type": "string"
+          },
+          "enrollment_code_expires_at": {
+            "format": "date-time",
+            "title": "Enrollment Code Expires At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "enrollment_code",
+          "enrollment_code_expires_at"
+        ],
+        "title": "EnrollmentCodeOut",
+        "type": "object"
+      },
+      "EnrollmentIn": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "title": "EnrollmentIn",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -184,6 +824,56 @@
         },
         "title": "HTTPValidationError",
         "type": "object"
+      },
+      "HeartRateBandOut": {
+        "additionalProperties": false,
+        "description": "Интервал пульса: `from_bpm` null — «ниже 40», `to_bpm` null — «120 и выше»; включительно.",
+        "properties": {
+          "from_bpm": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Bpm"
+          },
+          "minutes": {
+            "title": "Minutes",
+            "type": "integer"
+          },
+          "to_bpm": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Bpm"
+          }
+        },
+        "required": [
+          "from_bpm",
+          "to_bpm",
+          "minutes"
+        ],
+        "title": "HeartRateBandOut",
+        "type": "object"
+      },
+      "LiveHeartRateFailureReason": {
+        "enum": [
+          "expired",
+          "band_unavailable",
+          "notification_permission_denied",
+          "companion_association_missing",
+          "measurement_failed"
+        ],
+        "title": "LiveHeartRateFailureReason",
+        "type": "string"
       },
       "LiveHeartRateIn": {
         "additionalProperties": false,
@@ -228,6 +918,17 @@
         "title": "LiveHeartRateReadingOut",
         "type": "object"
       },
+      "LiveHeartRateRequestStatus": {
+        "enum": [
+          "waiting_for_phone",
+          "running",
+          "completed",
+          "stopped_by_patient",
+          "failed"
+        ],
+        "title": "LiveHeartRateRequestStatus",
+        "type": "string"
+      },
       "LiveHeartRateWindowOut": {
         "additionalProperties": false,
         "description": "Замеры за последние `window_seconds` секунд, по порядку.",
@@ -270,6 +971,189 @@
         "title": "MinuteBatchIn",
         "type": "object"
       },
+      "MonitoringSettingsIn": {
+        "additionalProperties": false,
+        "properties": {
+          "daily_alert_time_utc": {
+            "format": "time",
+            "title": "Daily Alert Time Utc",
+            "type": "string"
+          },
+          "high_heart_rate_threshold": {
+            "title": "High Heart Rate Threshold",
+            "type": "integer"
+          },
+          "low_activity_steps": {
+            "title": "Low Activity Steps",
+            "type": "integer"
+          },
+          "training_minutes_upper_threshold": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Training Minutes Upper Threshold"
+          },
+          "walking_steps_threshold": {
+            "title": "Walking Steps Threshold",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "walking_steps_threshold",
+          "high_heart_rate_threshold",
+          "low_activity_steps",
+          "daily_alert_time_utc"
+        ],
+        "title": "MonitoringSettingsIn",
+        "type": "object"
+      },
+      "MonitoringSettingsOut": {
+        "additionalProperties": false,
+        "properties": {
+          "daily_alert_time_utc": {
+            "format": "time",
+            "title": "Daily Alert Time Utc",
+            "type": "string"
+          },
+          "high_heart_rate_threshold": {
+            "title": "High Heart Rate Threshold",
+            "type": "integer"
+          },
+          "low_activity_steps": {
+            "title": "Low Activity Steps",
+            "type": "integer"
+          },
+          "training_minutes_upper_threshold": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Training Minutes Upper Threshold"
+          },
+          "walking_steps_threshold": {
+            "title": "Walking Steps Threshold",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "training_minutes_upper_threshold",
+          "walking_steps_threshold",
+          "high_heart_rate_threshold",
+          "low_activity_steps",
+          "daily_alert_time_utc"
+        ],
+        "title": "MonitoringSettingsOut",
+        "type": "object"
+      },
+      "PatientAdmissionIn": {
+        "additionalProperties": false,
+        "description": "Карточка пациента. `repr` не раскрывает данные: тело запроса не попадает в журналы.",
+        "properties": {
+          "birth_date": {
+            "format": "date",
+            "title": "Birth Date",
+            "type": "string"
+          },
+          "diagnosis": {
+            "title": "Diagnosis",
+            "type": "string"
+          },
+          "first_name": {
+            "title": "First Name",
+            "type": "string"
+          },
+          "height_cm": {
+            "title": "Height Cm",
+            "type": "integer"
+          },
+          "last_name": {
+            "title": "Last Name",
+            "type": "string"
+          },
+          "middle_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Middle Name"
+          },
+          "time_zone": {
+            "title": "Time Zone",
+            "type": "string"
+          },
+          "weight_kg": {
+            "title": "Weight Kg",
+            "type": "number"
+          }
+        },
+        "required": [
+          "last_name",
+          "first_name",
+          "birth_date",
+          "height_cm",
+          "weight_kg",
+          "diagnosis",
+          "time_zone"
+        ],
+        "title": "PatientAdmissionIn",
+        "type": "object"
+      },
+      "PatientCardOut": {
+        "additionalProperties": false,
+        "description": "`profile` null — пациент зарегистрировался с телефона по имени (демо).",
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "patient_id": {
+            "format": "uuid",
+            "title": "Patient Id",
+            "type": "string"
+          },
+          "profile": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProfileOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "registered_at": {
+            "format": "date-time",
+            "title": "Registered At",
+            "type": "string"
+          },
+          "time_zone": {
+            "title": "Time Zone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "patient_id",
+          "name",
+          "time_zone",
+          "registered_at",
+          "profile"
+        ],
+        "title": "PatientCardOut",
+        "type": "object"
+      },
       "PatientDayOut": {
         "additionalProperties": false,
         "description": "День в часовом поясе пациента: итоги и минуты по порядку.",
@@ -278,6 +1162,13 @@
             "format": "date",
             "title": "Day",
             "type": "string"
+          },
+          "heart_rate_distribution": {
+            "items": {
+              "$ref": "#/components/schemas/HeartRateBandOut"
+            },
+            "title": "Heart Rate Distribution",
+            "type": "array"
           },
           "minutes": {
             "items": {
@@ -298,6 +1189,7 @@
           "day",
           "time_zone",
           "summary",
+          "heart_rate_distribution",
           "minutes"
         ],
         "title": "PatientDayOut",
@@ -399,6 +1291,558 @@
         "title": "PatientProfileOut",
         "type": "object"
       },
+      "PatientProgressOut": {
+        "additionalProperties": false,
+        "description": "Строка главной: «день X из Y», «в N днях из M», норма сегодня «пока».",
+        "properties": {
+          "completed_days": {
+            "title": "Completed Days",
+            "type": "integer"
+          },
+          "duration_days": {
+            "title": "Duration Days",
+            "type": "integer"
+          },
+          "is_finished": {
+            "title": "Is Finished",
+            "type": "boolean"
+          },
+          "met_days": {
+            "title": "Met Days",
+            "type": "integer"
+          },
+          "patient_id": {
+            "format": "uuid",
+            "title": "Patient Id",
+            "type": "string"
+          },
+          "program_day": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Program Day"
+          },
+          "today": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TodayOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "patient_id",
+          "program_day",
+          "duration_days",
+          "is_finished",
+          "met_days",
+          "completed_days",
+          "today"
+        ],
+        "title": "PatientProgressOut",
+        "type": "object"
+      },
+      "PhoneAlertOut": {
+        "additionalProperties": false,
+        "description": "Оповещение для пациента: значения, без текста — тексты утверждает врач (В-19).",
+        "properties": {
+          "alert_id": {
+            "format": "uuid",
+            "title": "Alert Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "daily_target": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PhoneDailyTargetOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "day": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day"
+          },
+          "high_heart_rate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PhoneHighHeartRateOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AlertKind"
+          },
+          "low_activity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PhoneLowActivityOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "training_minutes_exceeded": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PhoneTrainingMinutesExceededOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "alert_id",
+          "kind",
+          "day",
+          "created_at",
+          "high_heart_rate",
+          "daily_target",
+          "low_activity",
+          "training_minutes_exceeded"
+        ],
+        "title": "PhoneAlertOut",
+        "type": "object"
+      },
+      "PhoneDailyTargetOut": {
+        "additionalProperties": false,
+        "properties": {
+          "steps": {
+            "title": "Steps",
+            "type": "integer"
+          },
+          "target_steps": {
+            "title": "Target Steps",
+            "type": "integer"
+          },
+          "target_training_minutes": {
+            "title": "Target Training Minutes",
+            "type": "integer"
+          },
+          "training_minutes": {
+            "title": "Training Minutes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "training_minutes",
+          "target_training_minutes",
+          "steps",
+          "target_steps"
+        ],
+        "title": "PhoneDailyTargetOut",
+        "type": "object"
+      },
+      "PhoneHighHeartRateOut": {
+        "additionalProperties": false,
+        "properties": {
+          "duration_minutes": {
+            "title": "Duration Minutes",
+            "type": "integer"
+          },
+          "last_at": {
+            "format": "date-time",
+            "title": "Last At",
+            "type": "string"
+          },
+          "max_heart_rate": {
+            "title": "Max Heart Rate",
+            "type": "integer"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "threshold_bpm": {
+            "title": "Threshold Bpm",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "started_at",
+          "last_at",
+          "duration_minutes",
+          "max_heart_rate",
+          "threshold_bpm"
+        ],
+        "title": "PhoneHighHeartRateOut",
+        "type": "object"
+      },
+      "PhoneLiveHeartRateRequestEnvelope": {
+        "additionalProperties": false,
+        "properties": {
+          "request": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PhoneLiveHeartRateRequestOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "request"
+        ],
+        "title": "PhoneLiveHeartRateRequestEnvelope",
+        "type": "object"
+      },
+      "PhoneLiveHeartRateRequestOut": {
+        "additionalProperties": false,
+        "properties": {
+          "duration_minutes": {
+            "title": "Duration Minutes",
+            "type": "integer"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "failure_reason": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LiveHeartRateFailureReason"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "request_id": {
+            "format": "uuid",
+            "title": "Request Id",
+            "type": "string"
+          },
+          "requested_at": {
+            "format": "date-time",
+            "title": "Requested At",
+            "type": "string"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "$ref": "#/components/schemas/LiveHeartRateRequestStatus"
+          }
+        },
+        "required": [
+          "request_id",
+          "duration_minutes",
+          "requested_at",
+          "expires_at",
+          "status",
+          "started_at",
+          "finished_at",
+          "failure_reason"
+        ],
+        "title": "PhoneLiveHeartRateRequestOut",
+        "type": "object"
+      },
+      "PhoneLowActivityOut": {
+        "additionalProperties": false,
+        "properties": {
+          "steps": {
+            "title": "Steps",
+            "type": "integer"
+          },
+          "threshold_steps": {
+            "title": "Threshold Steps",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "steps",
+          "threshold_steps"
+        ],
+        "title": "PhoneLowActivityOut",
+        "type": "object"
+      },
+      "PhoneProgramOut": {
+        "additionalProperties": false,
+        "properties": {
+          "duration_days": {
+            "title": "Duration Days",
+            "type": "integer"
+          },
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/PhoneStageOut"
+            },
+            "title": "Stages",
+            "type": "array"
+          },
+          "start_date": {
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "start_date",
+          "duration_days",
+          "stages"
+        ],
+        "title": "PhoneProgramOut",
+        "type": "object"
+      },
+      "PhoneRehabPlanOut": {
+        "additionalProperties": false,
+        "description": "Только то, что телефону нужно для показа нормы дня пациенту.",
+        "properties": {
+          "effective_from": {
+            "format": "date",
+            "title": "Effective From",
+            "type": "string"
+          },
+          "program": {
+            "$ref": "#/components/schemas/PhoneProgramOut"
+          },
+          "time_zone": {
+            "title": "Time Zone",
+            "type": "string"
+          },
+          "walking_steps_threshold": {
+            "title": "Walking Steps Threshold",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "time_zone",
+          "effective_from",
+          "walking_steps_threshold",
+          "program"
+        ],
+        "title": "PhoneRehabPlanOut",
+        "type": "object"
+      },
+      "PhoneStageOut": {
+        "additionalProperties": false,
+        "properties": {
+          "first_day": {
+            "title": "First Day",
+            "type": "integer"
+          },
+          "last_day": {
+            "title": "Last Day",
+            "type": "integer"
+          },
+          "targets": {
+            "$ref": "#/components/schemas/PhoneTargetsOut"
+          }
+        },
+        "required": [
+          "first_day",
+          "last_day",
+          "targets"
+        ],
+        "title": "PhoneStageOut",
+        "type": "object"
+      },
+      "PhoneTargetsOut": {
+        "additionalProperties": false,
+        "properties": {
+          "steps": {
+            "title": "Steps",
+            "type": "integer"
+          },
+          "training_minutes": {
+            "title": "Training Minutes",
+            "type": "integer"
+          },
+          "training_zone": {
+            "$ref": "#/components/schemas/PhoneTrainingZoneOut"
+          }
+        },
+        "required": [
+          "training_zone",
+          "training_minutes",
+          "steps"
+        ],
+        "title": "PhoneTargetsOut",
+        "type": "object"
+      },
+      "PhoneTrainingMinutesExceededOut": {
+        "additionalProperties": false,
+        "properties": {
+          "threshold_minutes": {
+            "title": "Threshold Minutes",
+            "type": "integer"
+          },
+          "training_minutes": {
+            "title": "Training Minutes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "training_minutes",
+          "threshold_minutes"
+        ],
+        "title": "PhoneTrainingMinutesExceededOut",
+        "type": "object"
+      },
+      "PhoneTrainingZoneOut": {
+        "additionalProperties": false,
+        "properties": {
+          "lower_bpm": {
+            "title": "Lower Bpm",
+            "type": "integer"
+          },
+          "upper_bpm": {
+            "title": "Upper Bpm",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "lower_bpm",
+          "upper_bpm"
+        ],
+        "title": "PhoneTrainingZoneOut",
+        "type": "object"
+      },
+      "ProfileOut": {
+        "additionalProperties": false,
+        "properties": {
+          "age_years": {
+            "title": "Age Years",
+            "type": "integer"
+          },
+          "birth_date": {
+            "format": "date",
+            "title": "Birth Date",
+            "type": "string"
+          },
+          "diagnosis": {
+            "title": "Diagnosis",
+            "type": "string"
+          },
+          "first_name": {
+            "title": "First Name",
+            "type": "string"
+          },
+          "height_cm": {
+            "title": "Height Cm",
+            "type": "integer"
+          },
+          "last_name": {
+            "title": "Last Name",
+            "type": "string"
+          },
+          "middle_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Middle Name"
+          },
+          "weight_kg": {
+            "title": "Weight Kg",
+            "type": "number"
+          }
+        },
+        "required": [
+          "last_name",
+          "first_name",
+          "middle_name",
+          "birth_date",
+          "age_years",
+          "height_cm",
+          "weight_kg",
+          "diagnosis"
+        ],
+        "title": "ProfileOut",
+        "type": "object"
+      },
+      "ProgramDayOut": {
+        "additionalProperties": false,
+        "properties": {
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "program_day": {
+            "title": "Program Day",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ProgramDayStatus"
+          }
+        },
+        "required": [
+          "day",
+          "program_day",
+          "status"
+        ],
+        "title": "ProgramDayOut",
+        "type": "object"
+      },
+      "ProgramDayStatus": {
+        "enum": [
+          "met",
+          "not_met",
+          "no_data",
+          "in_progress"
+        ],
+        "title": "ProgramDayStatus",
+        "type": "string"
+      },
       "RegistrationIn": {
         "additionalProperties": false,
         "description": "Имя пациента и часовой пояс телефона.",
@@ -456,6 +1900,412 @@
           "token"
         ],
         "title": "RegistrationOut",
+        "type": "object"
+      },
+      "RehabPlanIn": {
+        "additionalProperties": false,
+        "description": "Программа и параметры наблюдения целиком; действуют с сегодняшнего дня пациента.",
+        "properties": {
+          "monitoring_settings": {
+            "$ref": "#/components/schemas/MonitoringSettingsIn"
+          },
+          "program": {
+            "$ref": "#/components/schemas/RehabProgramIn"
+          }
+        },
+        "required": [
+          "program",
+          "monitoring_settings"
+        ],
+        "title": "RehabPlanIn",
+        "type": "object"
+      },
+      "RehabPlanOut": {
+        "additionalProperties": false,
+        "description": "Текущая версия плана. `is_default` — план не сохранялся (программа по умолчанию).",
+        "properties": {
+          "effective_from": {
+            "format": "date",
+            "title": "Effective From",
+            "type": "string"
+          },
+          "is_default": {
+            "title": "Is Default",
+            "type": "boolean"
+          },
+          "monitoring_settings": {
+            "$ref": "#/components/schemas/MonitoringSettingsOut"
+          },
+          "program": {
+            "$ref": "#/components/schemas/RehabProgramOut"
+          },
+          "time_zone": {
+            "title": "Time Zone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "time_zone",
+          "is_default",
+          "effective_from",
+          "program",
+          "monitoring_settings"
+        ],
+        "title": "RehabPlanOut",
+        "type": "object"
+      },
+      "RehabProgramIn": {
+        "additionalProperties": false,
+        "properties": {
+          "duration_days": {
+            "title": "Duration Days",
+            "type": "integer"
+          },
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/RehabStageIn"
+            },
+            "title": "Stages",
+            "type": "array"
+          },
+          "start_date": {
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "start_date",
+          "duration_days",
+          "stages"
+        ],
+        "title": "RehabProgramIn",
+        "type": "object"
+      },
+      "RehabProgramOut": {
+        "additionalProperties": false,
+        "properties": {
+          "duration_days": {
+            "title": "Duration Days",
+            "type": "integer"
+          },
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/RehabStageOut"
+            },
+            "title": "Stages",
+            "type": "array"
+          },
+          "start_date": {
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "start_date",
+          "duration_days",
+          "stages"
+        ],
+        "title": "RehabProgramOut",
+        "type": "object"
+      },
+      "RehabProgressOut": {
+        "additionalProperties": false,
+        "description": "`program_day` null — программа не началась; сегодня — `in_progress`, не в счёте.",
+        "properties": {
+          "completed_days": {
+            "title": "Completed Days",
+            "type": "integer"
+          },
+          "current_stage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CurrentStageOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/ProgramDayOut"
+            },
+            "title": "Days",
+            "type": "array"
+          },
+          "duration_days": {
+            "title": "Duration Days",
+            "type": "integer"
+          },
+          "is_finished": {
+            "title": "Is Finished",
+            "type": "boolean"
+          },
+          "met_days": {
+            "title": "Met Days",
+            "type": "integer"
+          },
+          "program_day": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Program Day"
+          },
+          "start_date": {
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "start_date",
+          "duration_days",
+          "program_day",
+          "is_finished",
+          "completed_days",
+          "met_days",
+          "current_stage",
+          "days"
+        ],
+        "title": "RehabProgressOut",
+        "type": "object"
+      },
+      "RehabStageIn": {
+        "additionalProperties": false,
+        "properties": {
+          "first_day": {
+            "title": "First Day",
+            "type": "integer"
+          },
+          "last_day": {
+            "title": "Last Day",
+            "type": "integer"
+          },
+          "targets": {
+            "$ref": "#/components/schemas/DailyTargetsIn"
+          }
+        },
+        "required": [
+          "first_day",
+          "last_day",
+          "targets"
+        ],
+        "title": "RehabStageIn",
+        "type": "object"
+      },
+      "RehabStageOut": {
+        "additionalProperties": false,
+        "properties": {
+          "first_day": {
+            "title": "First Day",
+            "type": "integer"
+          },
+          "last_day": {
+            "title": "Last Day",
+            "type": "integer"
+          },
+          "targets": {
+            "$ref": "#/components/schemas/DailyTargetsOut"
+          }
+        },
+        "required": [
+          "first_day",
+          "last_day",
+          "targets"
+        ],
+        "title": "RehabStageOut",
+        "type": "object"
+      },
+      "ReportLiveHeartRateRequestIn": {
+        "additionalProperties": false,
+        "properties": {
+          "failure_reason": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LiveHeartRateFailureReason"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/LiveHeartRateRequestStatus"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "ReportLiveHeartRateRequestIn",
+        "type": "object"
+      },
+      "SignInIn": {
+        "additionalProperties": false,
+        "properties": {
+          "login": {
+            "maxLength": 64,
+            "title": "Login",
+            "type": "string"
+          },
+          "password": {
+            "maxLength": 128,
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "login",
+          "password"
+        ],
+        "title": "SignInIn",
+        "type": "object"
+      },
+      "TargetProgressOut": {
+        "additionalProperties": false,
+        "description": "`is_final: false` — сутки пациента не закончились, итог «пока».",
+        "properties": {
+          "has_data": {
+            "title": "Has Data",
+            "type": "boolean"
+          },
+          "is_final": {
+            "title": "Is Final",
+            "type": "boolean"
+          },
+          "is_met": {
+            "title": "Is Met",
+            "type": "boolean"
+          },
+          "steps": {
+            "title": "Steps",
+            "type": "integer"
+          },
+          "targets": {
+            "$ref": "#/components/schemas/DayTargetsOut"
+          },
+          "training_minutes": {
+            "title": "Training Minutes",
+            "type": "integer"
+          },
+          "walking_minutes": {
+            "title": "Walking Minutes",
+            "type": "integer"
+          },
+          "walking_minutes_without_heart_rate": {
+            "title": "Walking Minutes Without Heart Rate",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "targets",
+          "training_minutes",
+          "steps",
+          "walking_minutes",
+          "walking_minutes_without_heart_rate",
+          "has_data",
+          "is_final",
+          "is_met"
+        ],
+        "title": "TargetProgressOut",
+        "type": "object"
+      },
+      "TodayOut": {
+        "additionalProperties": false,
+        "properties": {
+          "is_met": {
+            "title": "Is Met",
+            "type": "boolean"
+          },
+          "steps": {
+            "title": "Steps",
+            "type": "integer"
+          },
+          "target_steps": {
+            "title": "Target Steps",
+            "type": "integer"
+          },
+          "target_training_minutes": {
+            "title": "Target Training Minutes",
+            "type": "integer"
+          },
+          "training_minutes": {
+            "title": "Training Minutes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "training_minutes",
+          "target_training_minutes",
+          "steps",
+          "target_steps",
+          "is_met"
+        ],
+        "title": "TodayOut",
+        "type": "object"
+      },
+      "TrainingZoneIn": {
+        "additionalProperties": false,
+        "properties": {
+          "lower_bpm": {
+            "title": "Lower Bpm",
+            "type": "integer"
+          },
+          "upper_bpm": {
+            "title": "Upper Bpm",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "lower_bpm",
+          "upper_bpm"
+        ],
+        "title": "TrainingZoneIn",
+        "type": "object"
+      },
+      "TrainingZoneOut": {
+        "additionalProperties": false,
+        "properties": {
+          "lower_bpm": {
+            "title": "Lower Bpm",
+            "type": "integer"
+          },
+          "upper_bpm": {
+            "title": "Upper Bpm",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "lower_bpm",
+          "upper_bpm"
+        ],
+        "title": "TrainingZoneOut",
+        "type": "object"
+      },
+      "UnviewedCountOut": {
+        "additionalProperties": false,
+        "properties": {
+          "patient_id": {
+            "format": "uuid",
+            "title": "Patient Id",
+            "type": "string"
+          },
+          "unviewed_alerts": {
+            "title": "Unviewed Alerts",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "patient_id",
+          "unviewed_alerts"
+        ],
+        "title": "UnviewedCountOut",
         "type": "object"
       },
       "UploadCursorOut": {
@@ -549,6 +2399,12 @@
       }
     },
     "securitySchemes": {
+      "APIKeyCookie": {
+        "description": "Сеанс врача: cookie ставит POST /api/v1/auth/sign-in",
+        "in": "cookie",
+        "name": "kardio_session",
+        "type": "apiKey"
+      },
       "HTTPBearer": {
         "description": "Токен загрузки, выданный при регистрации телефона",
         "scheme": "bearer",
@@ -563,6 +2419,266 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/alerts": {
+      "get": {
+        "description": "Новые сверху. Оповещения приходят с задержкой синхронизации телефона (до 30–60 мин).",
+        "operationId": "list_alerts_api_v1_alerts_get",
+        "parameters": [
+          {
+            "description": "Только оповещения этого вида",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/AlertKind"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Только оповещения этого вида",
+              "title": "Kind"
+            }
+          },
+          {
+            "description": "Сколько последних",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "description": "Сколько последних",
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ClinicianAlertOut"
+                  },
+                  "title": "Response List Alerts Api V1 Alerts Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "summary": "Оповещения всех пациентов врача",
+        "tags": [
+          "Панель клиники"
+        ]
+      }
+    },
+    "/api/v1/alerts/unviewed-counts": {
+      "get": {
+        "description": "Строка на каждого пациента врача; панель соединяет с `GET /patients` по `patient_id`.",
+        "operationId": "list_unviewed_counts_api_v1_alerts_unviewed_counts_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/UnviewedCountOut"
+                  },
+                  "title": "Response List Unviewed Counts Api V1 Alerts Unviewed Counts Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "summary": "Непросмотренные оповещения пациентов врача",
+        "tags": [
+          "Панель клиники"
+        ]
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "description": "Нет сеанса — 401 `session_required`: панель показывает форму входа.",
+        "operationId": "get_signed_in_clinician_api_v1_auth_me_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClinicianOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "summary": "Кто вошёл",
+        "tags": [
+          "Вход врача"
+        ]
+      }
+    },
+    "/api/v1/auth/sign-in": {
+      "post": {
+        "description": "Ставит cookie сеанса. Неверный логин и неверный пароль — один ответ; после 5 неудач\nподряд вход закрыт на 15 минут.",
+        "operationId": "sign_in_clinician_api_v1_auth_sign_in_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignInIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClinicianOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Войти на панель",
+        "tags": [
+          "Вход врача"
+        ]
+      }
+    },
+    "/api/v1/auth/sign-out": {
+      "post": {
+        "description": "Завершает сеанс на сервере и снимает cookie. Без сеанса — тоже 204.",
+        "operationId": "sign_out_clinician_api_v1_auth_sign_out_post",
+        "parameters": [
+          {
+            "in": "cookie",
+            "name": "kardio_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kardio Session"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Выйти с панели",
+        "tags": [
+          "Вход врача"
+        ]
+      }
+    },
+    "/api/v1/enroll": {
+      "post": {
+        "description": "Код одноразовый; неизвестный, использованный и истёкший — 422 `invalid_enrollment_code`.",
+        "operationId": "enroll_api_v1_enroll_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnrollmentIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnrolledPhoneOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Привязать телефон по коду из QR",
+        "tags": [
+          "Телефон"
+        ]
+      }
+    },
     "/api/v1/me": {
       "get": {
         "description": "Проверка токена приложением: 200 — токен действителен, 401 — нет.",
@@ -664,6 +2780,79 @@
         ]
       }
     },
+    "/api/v1/me/alerts": {
+      "get": {
+        "description": "Телефон забирает при синхронизации; не больше 100 за раз (`has_more`).",
+        "operationId": "get_my_alerts_api_v1_me_alerts_get",
+        "parameters": [
+          {
+            "description": "`cursor` прошлого ответа; 0 — с начала",
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "`cursor` прошлого ответа; 0 — с начала",
+              "minimum": 0,
+              "title": "After",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Известные телефону виды (повторяемый); без него — четыре прежних вида",
+            "in": "query",
+            "name": "supported_kinds",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/AlertKind"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Известные телефону виды (повторяемый); без него — четыре прежних вида",
+              "title": "Supported Kinds"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertFeedOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Новые оповещения пациента",
+        "tags": [
+          "Телефон"
+        ]
+      }
+    },
     "/api/v1/me/live-heart-rate": {
       "post": {
         "description": "Идемпотентно по `measured_at`.",
@@ -704,25 +2893,139 @@
         ]
       }
     },
+    "/api/v1/me/live-heart-rate-request": {
+      "get": {
+        "operationId": "get_active_live_heart_rate_request_api_v1_me_live_heart_rate_request_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PhoneLiveHeartRateRequestEnvelope"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Получить активный запрос пульса от клиники",
+        "tags": [
+          "Телефон"
+        ]
+      }
+    },
+    "/api/v1/me/live-heart-rate-requests/{request_id}/status": {
+      "put": {
+        "operationId": "update_live_heart_rate_request_status_api_v1_me_live_heart_rate_requests__request_id__status_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "request_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Request Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportLiveHeartRateRequestIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PhoneLiveHeartRateRequestOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Сообщить состояние запроса пульса",
+        "tags": [
+          "Телефон"
+        ]
+      }
+    },
+    "/api/v1/me/rehab-plan": {
+      "get": {
+        "description": "Текущая версия плана; врач его не менял — программа по умолчанию.",
+        "operationId": "get_my_rehab_plan_api_v1_me_rehab_plan_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PhoneRehabPlanOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Программа и нормы пациента для телефона",
+        "tags": [
+          "Телефон"
+        ]
+      }
+    },
     "/api/v1/patients": {
       "get": {
         "description": "Для демо пациентов единицы: два запроса на пациента допустимы.",
         "operationId": "list_patients_api_v1_patients_get",
         "parameters": [
           {
-            "in": "header",
-            "name": "X-Dashboard-Key",
+            "description": "Подстрока ФИО",
+            "in": "query",
+            "name": "search",
             "required": false,
             "schema": {
               "anyOf": [
                 {
+                  "maxLength": 100,
                   "type": "string"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "title": "X-Dashboard-Key"
+              "description": "Подстрока ФИО",
+              "title": "Search"
             }
           }
         ],
@@ -752,7 +3055,194 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Все пациенты и свежесть их данных",
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "summary": "Пациенты врача и свежесть их данных",
+        "tags": [
+          "Панель клиники"
+        ]
+      },
+      "post": {
+        "description": "Врач становится лечащим врачом; код привязки — для QR v2, показывается один раз.",
+        "operationId": "create_patient_api_v1_patients_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatientAdmissionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdmittedPatientOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "summary": "Создать пациента",
+        "tags": [
+          "Панель клиники"
+        ]
+      }
+    },
+    "/api/v1/patients/{patient_id}/alerts": {
+      "get": {
+        "description": "Новые сверху; для карточки пациента.",
+        "operationId": "list_patient_alerts_api_v1_patients__patient_id__alerts_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "patient_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Patient Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Только оповещения этого вида",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/AlertKind"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Только оповещения этого вида",
+              "title": "Kind"
+            }
+          },
+          {
+            "description": "Сколько последних",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "description": "Сколько последних",
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ClinicianAlertOut"
+                  },
+                  "title": "Response List Patient Alerts Api V1 Patients  Patient Id  Alerts Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "summary": "Оповещения пациента",
+        "tags": [
+          "Панель клиники"
+        ]
+      }
+    },
+    "/api/v1/patients/{patient_id}/alerts/{alert_id}/viewed": {
+      "post": {
+        "description": "Идемпотентно. Оповещения не удаляются: «просмотрено» только убирает его из счётчика.",
+        "operationId": "mark_alert_viewed_api_v1_patients__patient_id__alerts__alert_id__viewed_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "patient_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Patient Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "alert_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Alert Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "summary": "Отметить оповещение «просмотрено»",
         "tags": [
           "Панель клиники"
         ]
@@ -782,22 +3272,6 @@
               "title": "Day",
               "type": "string"
             }
-          },
-          {
-            "in": "header",
-            "name": "X-Dashboard-Key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Dashboard-Key"
-            }
           }
         ],
         "responses": {
@@ -822,7 +3296,120 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ],
         "summary": "Минуты и итоги дня пациента",
+        "tags": [
+          "Панель клиники"
+        ]
+      }
+    },
+    "/api/v1/patients/{patient_id}/days/{day}/target-progress": {
+      "get": {
+        "description": "`day` — день в часовом поясе пациента; нормы — версии плана, действовавшей в этот день.",
+        "operationId": "get_day_target_progress_api_v1_patients__patient_id__days__day__target_progress_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "patient_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Patient Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "day",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "Day",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DayTargetProgressOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "summary": "Выполнение нормы дня пациента",
+        "tags": [
+          "Панель клиники"
+        ]
+      }
+    },
+    "/api/v1/patients/{patient_id}/enrollment-code": {
+      "post": {
+        "description": "Прежний код перестаёт действовать. Показывается один раз.",
+        "operationId": "create_enrollment_code_api_v1_patients__patient_id__enrollment_code_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "patient_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Patient Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnrollmentCodeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "summary": "Новый код привязки телефона пациента",
         "tags": [
           "Панель клиники"
         ]
@@ -854,22 +3441,6 @@
               "title": "Window Seconds",
               "type": "integer"
             }
-          },
-          {
-            "in": "header",
-            "name": "X-Dashboard-Key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Dashboard-Key"
-            }
           }
         ],
         "responses": {
@@ -894,7 +3465,322 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ],
         "summary": "Пульс сейчас за последние секунды",
+        "tags": [
+          "Панель клиники"
+        ]
+      }
+    },
+    "/api/v1/patients/{patient_id}/live-heart-rate-requests": {
+      "post": {
+        "operationId": "request_live_heart_rate_api_v1_patients__patient_id__live_heart_rate_requests_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "patient_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Patient Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateLiveHeartRateRequestIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClinicianLiveHeartRateRequestOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "summary": "Запросить непрерывный пульс у пациента",
+        "tags": [
+          "Панель клиники"
+        ]
+      }
+    },
+    "/api/v1/patients/{patient_id}/live-heart-rate-requests/latest": {
+      "get": {
+        "operationId": "get_latest_live_heart_rate_request_api_v1_patients__patient_id__live_heart_rate_requests_latest_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "patient_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Patient Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClinicianLiveHeartRateRequestEnvelope"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "summary": "Последний запрос непрерывного пульса",
+        "tags": [
+          "Панель клиники"
+        ]
+      }
+    },
+    "/api/v1/patients/{patient_id}/profile": {
+      "get": {
+        "description": "Только лечащему врачу; открытие записывается в журнал доступа (ТР-11, п. 6).",
+        "operationId": "get_patient_card_api_v1_patients__patient_id__profile_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "patient_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Patient Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatientCardOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "summary": "Карточка пациента",
+        "tags": [
+          "Панель клиники"
+        ]
+      }
+    },
+    "/api/v1/patients/{patient_id}/rehab-plan": {
+      "get": {
+        "description": "Текущая версия; план не сохранялся — программа по умолчанию с дня регистрации.\n\nОткрытие плана записывается в журнал доступа (ТР-11, п. 6).",
+        "operationId": "get_rehab_plan_api_v1_patients__patient_id__rehab_plan_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "patient_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Patient Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RehabPlanOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "summary": "План реабилитации пациента",
+        "tags": [
+          "Панель клиники"
+        ]
+      },
+      "put": {
+        "description": "Действует с сегодняшнего дня пациента; прошлые дни оцениваются прежними нормами.",
+        "operationId": "change_rehab_plan_api_v1_patients__patient_id__rehab_plan_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "patient_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Patient Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RehabPlanIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RehabPlanOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "summary": "Изменить план реабилитации пациента",
+        "tags": [
+          "Панель клиники"
+        ]
+      }
+    },
+    "/api/v1/patients/{patient_id}/rehab-progress": {
+      "get": {
+        "description": "Считается по минутам всех прошедших дней программы (requirements-design.md, «Риски»).",
+        "operationId": "get_rehab_progress_api_v1_patients__patient_id__rehab_progress_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "patient_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Patient Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RehabProgressOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "summary": "Прогресс реабилитации пациента",
         "tags": [
           "Панель клиники"
         ]
@@ -939,6 +3825,37 @@
         "summary": "Зарегистрировать пациента и его телефон",
         "tags": [
           "Пациенты"
+        ]
+      }
+    },
+    "/api/v1/rehab-progress": {
+      "get": {
+        "description": "По кешу итогов дня (ТР-06, п. 4): минуты читаются только за дни без итога.",
+        "operationId": "list_rehab_progress_api_v1_rehab_progress_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PatientProgressOut"
+                  },
+                  "title": "Response List Rehab Progress Api V1 Rehab Progress Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "summary": "Прогресс реабилитации всех пациентов врача",
+        "tags": [
+          "Панель клиники"
         ]
       }
     },

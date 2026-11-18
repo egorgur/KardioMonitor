@@ -1,0 +1,17 @@
+plugins { id 'java-library' }
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+tasks.register('vectorTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'ru.kardiomonitor.band9probe.protocol.VectorTests'
+    enableAssertions = true
+}
+tasks.named('test') {
+    dependsOn 'vectorTest'
+    // Tests run through JavaExec above, deliberately without a JUnit dependency.
+    failOnNoDiscoveredTests = false
+}
+tasks.named('check') { dependsOn 'vectorTest' }

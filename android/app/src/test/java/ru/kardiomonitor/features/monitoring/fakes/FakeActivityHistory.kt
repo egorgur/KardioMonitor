@@ -6,7 +6,7 @@ import ru.kardiomonitor.features.monitoring.domain.ActivityHistory
 import ru.kardiomonitor.features.monitoring.domain.ActivityMinute
 import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneOffset
+import java.time.ZoneId
 
 /** История в памяти: одна запись на минуту, как в базе. Дни — по UTC. */
 class FakeActivityHistory(initial: List<ActivityMinute> = emptyList()) : ActivityHistory {
@@ -22,8 +22,16 @@ class FakeActivityHistory(initial: List<ActivityMinute> = emptyList()) : Activit
         if (minutes.isNotEmpty()) changeEvents.tryEmit(Unit)
     }
 
-    override suspend fun minutesOf(day: LocalDate): List<ActivityMinute> =
-        byStart.values.filter { it.start.atZone(ZoneOffset.UTC).toLocalDate() == day }
+    override suspend fun minutesOf(day: LocalDate, timeZone: ZoneId): List<ActivityMinute> =
+        byStart.values.filter { it.start.atZone(timeZone).toLocalDate() == day }
+
+    override suspend fun minutesBetween(
+        firstDay: LocalDate,
+        lastDay: LocalDate,
+        timeZone: ZoneId,
+    ): Map<LocalDate, List<ActivityMinute>> = byStart.values
+        .filter { it.start.atZone(timeZone).toLocalDate() in firstDay..lastDay }
+        .groupBy { it.start.atZone(timeZone).toLocalDate() }
 
     override suspend fun lastRecordedMinute(): Instant? = byStart.keys.lastOrNull()
 

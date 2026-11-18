@@ -9,6 +9,9 @@ import java.time.ZonedDateTime
  * (`features.band.api.BandConnection`); сбои связи — `java.io.IOException`.
  */
 interface ActivitySource {
+    /** Непроверенный протокол не открывает сеанс и не выдаёт пустую историю за успешную выгрузку. */
+    val monitoringUnavailableReason: String? get() = null
+
     /** Минуты активности начиная с [start]; [onProgress] — сколько минут уже получено. */
     suspend fun minutesSince(start: ZonedDateTime, onProgress: (minutesReceived: Int) -> Unit): List<ActivityMinute>
 

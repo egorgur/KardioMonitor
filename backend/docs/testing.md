@@ -82,8 +82,21 @@ async def test_повторная_загрузка_тех_же_минут_не_�
 
 `ASGITransport` не запускает `lifespan`: тестам слайсов с фейками база не нужна. Тестам с
 настоящей базой — `async with app.router.lifespan_context(app)` (см. `test_end_to_end.py`).
+Периодические задачи в тестах выключены (`settings_for_tests`: `periodic_checks=False`):
+дневную проверку тест запускает сам — сценарий `check_daily_alerts` с фейками или
+`run_daily_check(app.state.dishka_container)` на настоящей базе (`test_alerts_end_to_end.py`).
+Тест приёма данных подменяет `MonitoringSubscriber` записывающим фейком (`RecordingSubscriber`).
 
-HTTP-заголовки — только ASCII: кириллица в `Authorization` или `X-Dashboard-Key` в тесте
+Превышение тренировочных минут проверяют `tests/features/alerts/domain/test_training_minutes_alert.py`,
+`tests/features/alerts/training_minutes/`, SQL-журнал и слайсы плана/ленты, а также
+`tests/test_training_minutes_end_to_end.py` и `tests/test_training_minutes_rollback.py`.
+Проверки включают 59/60/61 при пороге 60, повторы, исправления, историю версий, полуночь,
+немедленную проверку при правке, неизменность просмотра/курсора и откат upload/плана.
+`tests/test_schema_upgrade.py` проверяет явное идемпотентное обновление старой схемы:
+сохраняются пациент, токен, минуты, версии плана и журнал; старая схема не запускается молча.
+Тесты не применяют обновление к рабочему `kardio.db`.
+
+HTTP-заголовки — только ASCII: кириллица в `Authorization` или в cookie в тесте
 даёт `UnicodeEncodeError` в httpx, а не проверку сервера.
 
 ### Имена тестов

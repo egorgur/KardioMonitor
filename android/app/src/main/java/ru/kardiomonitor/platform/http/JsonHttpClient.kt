@@ -30,6 +30,10 @@ class JsonHttpClient(
     suspend fun post(url: String, body: JSONObject, bearerToken: String? = null): JSONObject? =
         request("POST", url, body, bearerToken)
 
+    /** PUT с JSON-телом; null — пустое тело ответа. */
+    suspend fun put(url: String, body: JSONObject, bearerToken: String? = null): JSONObject? =
+        request("PUT", url, body, bearerToken)
+
     private suspend fun request(method: String, url: String, body: JSONObject?, bearerToken: String?): JSONObject? =
         withContext(Dispatchers.IO) {
             val connection = open(url, method, bearerToken)

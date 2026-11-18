@@ -19,9 +19,9 @@ Git общий на `KardioMonitor/` (корень — Python-прототип),
 
 ## Архитектура — читать перед изменением структуры
 
-Vertical Slice Architecture + DDD: код по контекстам (`features.band`, `features.monitoring`)
-и слайсам-сценариям, правила предметной области — в доменных типах, протокол браслета
-изолирован в `platform.huami`. Подробно: [docs/architecture.md](docs/architecture.md).
+Vertical Slice Architecture + DDD: код по контекстам (`features.band`, `features.monitoring`,
+`features.clinic`, `features.rehab`, `features.alerts`, `features.reminders`) и слайсам-сценариям, правила предметной области — в доменных типах,
+протокол браслета изолирован в `platform.huami`. Подробно: [docs/architecture.md](docs/architecture.md).
 
 - **IMPORTANT: слайсы не импортируют другие слайсы.** Связь — через доменные типы,
   `features.<контекст>.api` и Flow репозиториев.
@@ -34,6 +34,9 @@ Vertical Slice Architecture + DDD: код по контекстам (`features.b
 - Контекст `features.clinic` — отправка данных на сервер клиники (`../backend`, для демо — ngrok):
   HTTP — только `platform.http.JsonHttpClient` ([ADR-0006](docs/adr/0006-http-without-library.md)),
   контракт — `../backend/docs/api-contract.md`. Токен загрузки не логировать.
+- Утилита персонала (второе приложение, модуль `:staff`) — спецификация и план шагов:
+  [docs/staff-app/](docs/staff-app/README.md), ADR-0007…0010 приняты. Работать по шагам плана;
+  открытые вопросы оттуда не додумывать. QR-код браслета — контракт [docs/qr-contract.md](docs/qr-contract.md).
 - Миграция прототипа со слоёв на эту структуру завершена (architecture.md). Слоёв
   `ble/`, `data/`, `ui/` больше нет — не создавать их заново.
 
@@ -42,7 +45,8 @@ Vertical Slice Architecture + DDD: код по контекстам (`features.b
 Полностью: [docs/coding-rules.md](docs/coding-rules.md). Главное:
 
 - Value-типы вместо примитивов (`HeartRate`, `BandAddress`), `sealed` вместо int-кодов.
-- Файл ≤ 300 строк, функция ≤ 40; один публичный тип на файл; точка входа слайса — единственное `public`.
+- Файл ≤ 300 строк, функция ≤ 40 (composable ≤ 80); один публичный тип на файл; точка входа
+  слайса — единственное `public`. Всё это проверяют архитектурные тесты.
 - `CancellationException` всегда пробрасывать; без `runCatching`; не глотать исключения молча.
 - Без бизнес-логики в composable; состояние экрана — неизменяемый `UiState`.
 - Комментарии и тексты UI — на русском, идентификаторы — на английском.
@@ -76,8 +80,10 @@ Vertical Slice Architecture + DDD: код по контекстам (`features.b
   истории: миграция завершена).
 - Подагент `architecture-reviewer` — ревью диффа перед отчётом.
 - Stop-hook запускает `testDebugUnitTest`, если менялся код; PreToolUse-hook блокирует
-  опасные adb-команды и вывод ключа. Внешние skills (`jetpack-compose`, `security`,
-  `testing-setup`) и их установка — в [ai-agent-workflow.md](docs/ai-agent-workflow.md).
+  опасные adb-команды и вывод ключа.
+- Внешние skills (`jetpack-compose`, `security`, `testing-setup` …) в репозиторий **не
+  установлены**: какие и когда ставить — [ai-agent-workflow.md](docs/ai-agent-workflow.md);
+  устанавливает человек после чтения `SKILL.md`.
 
 ## Порядок работы
 

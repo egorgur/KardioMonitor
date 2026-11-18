@@ -48,5 +48,7 @@ def _constant(instance: object) -> Callable[[], object]:
 
 
 def settings_for_tests(database_url: str = "sqlite+aiosqlite:///:memory:") -> Settings:
-    """Настройки без собранной панели и без ключа панели."""
-    return Settings(database_url=database_url, frontend_dist=Path("/nonexistent"))
+    """Настройки без собранной панели; периодические проверки тесты запускают сами."""
+    return Settings(
+        database_url=database_url, frontend_dist=Path("/nonexistent"), periodic_checks=False
+    )

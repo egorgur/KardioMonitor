@@ -4,6 +4,7 @@ import ru.kardiomonitor.features.band.domain.BatteryLevel
 import ru.kardiomonitor.features.band.domain.ConnectionProblem
 import ru.kardiomonitor.features.band.domain.ConnectionStage
 import ru.kardiomonitor.features.band.domain.HeartRateMeasurementInterval
+import ru.kardiomonitor.features.band.domain.ReportedHeartRateSettings
 
 /**
  * Состояние сеанса связи.
@@ -20,6 +21,7 @@ data class ConnectionState(
     val battery: BatteryLevel? = null,
     val appliedInterval: HeartRateMeasurementInterval? = null,
     val problem: ConnectionProblem? = null,
+    val reportedHeartRateSettings: ReportedHeartRateSettings? = null,
 ) {
     val isConnected: Boolean get() = stage == ConnectionStage.Connected
 }

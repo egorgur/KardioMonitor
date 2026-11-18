@@ -73,7 +73,7 @@ private fun ConnectionContent(
 ) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         state.problem?.let { ProblemCard(it, onDismissProblem) }
-        SectionCard("Mi Smart Band 6") {
+        SectionCard(state.model) {
             Text(state.title, color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (state.isConnected) {
                 Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
@@ -82,7 +82,7 @@ private fun ConnectionContent(
                 }
             }
             if (state.isBackgroundSession) {
-                Text("Идёт фоновая синхронизация", style = MaterialTheme.typography.bodySmall)
+                Text("Идёт фоновый сеанс связи", style = MaterialTheme.typography.bodySmall)
             }
             ConnectionButtons(state, onConnect, onDisconnect)
         }

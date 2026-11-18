@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.launch
 import ru.kardiomonitor.features.band.domain.BandCredentials
+import ru.kardiomonitor.features.band.domain.BandProtocol
 import ru.kardiomonitor.features.band.domain.BandLink
 import ru.kardiomonitor.features.band.domain.BatteryLevel
 import ru.kardiomonitor.features.band.domain.ConnectionProblem
@@ -25,6 +26,7 @@ import ru.kardiomonitor.features.monitoring.domain.ActivityMinute
 import ru.kardiomonitor.features.monitoring.domain.ActivitySource
 import ru.kardiomonitor.features.monitoring.domain.HeartRate
 import ru.kardiomonitor.features.monitoring.domain.StepCount
+import ru.kardiomonitor.platform.band.BandDriver
 import ru.kardiomonitor.platform.ble.GattClient
 import java.io.IOException
 import java.time.DateTimeException
@@ -36,7 +38,7 @@ import java.time.ZonedDateTime
  * доменные типы контекстов «Браслет» ([BandLink]) и «Мониторинг» ([ActivitySource]).
  * [scope] — scope приложения: в нём живут подтверждения канала 0x0017 и остановка измерения.
  */
-class HuamiBand(private val context: Context, private val scope: CoroutineScope) : BandLink, ActivitySource {
+class HuamiBand(private val context: Context, private val scope: CoroutineScope) : BandDriver {
     private val gatt = GattClient(context)
     @Volatile private var band: MiBand6? = null
 
@@ -50,6 +52,9 @@ class HuamiBand(private val context: Context, private val scope: CoroutineScope)
     }
 
     override suspend fun open(credentials: BandCredentials, onStage: (ConnectionStage) -> Unit): OpenResult {
+        if (credentials.protocol != BandProtocol.MiBand6Ble) {
+            return OpenResult.Refused(ConnectionProblem.LinkFailed("неверный протокол браслета"))
+        }
         onStage(ConnectionStage.Searching)
         if (!hasBluetoothPermissions()) return OpenResult.Refused(ConnectionProblem.NoPermission)
         val adapter = context.getSystemService(BluetoothManager::class.java)?.adapter
@@ -117,7 +122,9 @@ class HuamiBand(private val context: Context, private val scope: CoroutineScope)
     override suspend fun minutesSince(
         start: ZonedDateTime,
         onProgress: (minutesReceived: Int) -> Unit,
-    ): List<ActivityMinute> = protocolCall { requireOpen().fetchActivity(start, onProgress) }
+    ): List<ActivityMinute> = protocolCall {
+        requireOpen().fetchActivity(start, onProgress).map(ActivityRecords::fromProtocol)
+    }
 
     /** Браслет прекращает непрерывное измерение без пинга, поэтому пинг — раз в 12 с. */
     override fun liveHeartRate(): Flow<HeartRate?> = callbackFlow {

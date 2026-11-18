@@ -7,6 +7,10 @@ from typing import Self
 from kardiomonitor.features.monitoring.domain.activity_minute import ActivityKind, ActivityMinute
 from kardiomonitor.features.monitoring.domain.daily_summary import DailySummary
 from kardiomonitor.features.monitoring.domain.heart_rate import HeartRate
+from kardiomonitor.features.monitoring.domain.heart_rate_distribution import (
+    HeartRateBand,
+    HeartRateDistribution,
+)
 from kardiomonitor.platform.web.api_model import ApiModel, UtcDatetime
 
 
@@ -32,6 +36,18 @@ class DailySummaryOut(ApiModel):
         )
 
 
+class HeartRateBandOut(ApiModel):
+    """Интервал пульса: `from_bpm` null — «ниже 40», `to_bpm` null — «120 и выше»; включительно."""
+
+    from_bpm: int | None
+    to_bpm: int | None
+    minutes: int
+
+    @classmethod
+    def from_domain(cls, band: HeartRateBand) -> Self:
+        return cls(from_bpm=band.from_bpm, to_bpm=band.to_bpm, minutes=band.minutes)
+
+
 class DayMinuteOut(ApiModel):
     started_at: UtcDatetime
     steps: int
@@ -54,6 +70,7 @@ class PatientDayOut(ApiModel):
     day: date
     time_zone: str
     summary: DailySummaryOut
+    heart_rate_distribution: list[HeartRateBandOut]
     minutes: list[DayMinuteOut]
 
     @classmethod
@@ -62,6 +79,10 @@ class PatientDayOut(ApiModel):
             day=day,
             time_zone=time_zone,
             summary=DailySummaryOut.from_domain(DailySummary.of(minutes)),
+            heart_rate_distribution=[
+                HeartRateBandOut.from_domain(band)
+                for band in HeartRateDistribution.of(minutes).bands
+            ],
             minutes=[DayMinuteOut.from_domain(minute) for minute in minutes],
         )
 

@@ -7,9 +7,10 @@ import ru.kardiomonitor.features.band.domain.Band
 import ru.kardiomonitor.features.band.domain.BandAddress
 import ru.kardiomonitor.features.band.domain.BandCredentials
 import ru.kardiomonitor.features.band.domain.BandRepository
+import java.time.Instant
 
 /** Хранилище браслета в памяти. По умолчанию браслет привязан тестовыми учётными данными. */
-class FakeBandRepository(initial: Band? = Band.paired(TEST_CREDENTIALS)) : BandRepository {
+class FakeBandRepository(initial: Band? = Band.paired(TEST_CREDENTIALS, at = TEST_PAIRED_AT)) : BandRepository {
     private val current = MutableStateFlow(initial)
 
     override val band: StateFlow<Band?> = current
@@ -25,5 +26,7 @@ class FakeBandRepository(initial: Band? = Band.paired(TEST_CREDENTIALS)) : BandR
     companion object {
         /** Тестовый ключ из docs (protocol-change), не настоящий. */
         val TEST_CREDENTIALS = BandCredentials(BandAddress("E7:19:F3:6C:04:9E"), AuthKey("00112233445566778899aabbccddeeff"))
+
+        val TEST_PAIRED_AT: Instant = Instant.parse("2026-10-01T09:00:00Z")
     }
 }

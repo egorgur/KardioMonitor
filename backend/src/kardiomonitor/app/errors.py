@@ -7,6 +7,7 @@ from fastapi import FastAPI, Request, Response, status
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException
 
+from kardiomonitor.features.access.api import NotSignedInError
 from kardiomonitor.features.patients.api import NotAuthenticatedError
 from kardiomonitor.platform.web.problem import (
     ProblemDetail,
@@ -27,6 +28,7 @@ def install_error_handlers(app: FastAPI) -> None:
     _register(
         app, NotAuthenticatedError, _not_authenticated, headers={"WWW-Authenticate": "Bearer"}
     )
+    _register(app, NotSignedInError, _not_signed_in)
     _register(app, RequestValidationError, _invalid_request)
     _register(app, HTTPException, _http_error)
     _register(app, Exception, _internal_error)
@@ -82,6 +84,16 @@ def _not_authenticated(request: Request, _error: NotAuthenticatedError) -> Probl
         code="unauthorized",
         title="Телефон не зарегистрирован",
         detail="Нет токена загрузки или сервер его не знает — зарегистрируйтесь заново",
+    )
+
+
+def _not_signed_in(request: Request, _error: NotSignedInError) -> ProblemDetail:
+    return _problem(
+        request,
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        code="session_required",
+        title="Войдите на панель",
+        detail="Нет сеанса врача, или он истёк",
     )
 
 

@@ -14,7 +14,9 @@ interface BandLink {
 
     fun close()
 
-    suspend fun readBattery(): BatteryLevel
+    suspend fun readBattery(): BatteryLevel?
+
+    suspend fun readHeartRateSettings(): ReportedHeartRateSettings? = null
 
     suspend fun writeHeartRateMeasurementInterval(interval: HeartRateMeasurementInterval)
 }

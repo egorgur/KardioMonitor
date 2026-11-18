@@ -1,6 +1,8 @@
 package ru.kardiomonitor.features.monitoring.historysync
 
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -11,6 +13,7 @@ import ru.kardiomonitor.features.band.fakes.FakeBandConnection
 import ru.kardiomonitor.features.monitoring.domain.ActivityKind
 import ru.kardiomonitor.features.monitoring.domain.ActivityMinute
 import ru.kardiomonitor.features.monitoring.domain.HeartRate
+import ru.kardiomonitor.features.monitoring.domain.HistorySyncEvents
 import ru.kardiomonitor.features.monitoring.domain.Intensity
 import ru.kardiomonitor.features.monitoring.domain.StepCount
 import ru.kardiomonitor.features.monitoring.fakes.FakeActivityHistory
@@ -29,7 +32,9 @@ class SyncHistoryTest {
     private val source = FakeActivitySource()
     private val history = FakeActivityHistory()
     private val settings = FakeSyncSettings()
-    private val syncHistory = SyncHistory(connection, source, history, settings, clock)
+    private val events = RecordingHistorySyncEvents()
+    private var pairedAt: Instant? = null
+    private val syncHistory = SyncHistory(connection, { pairedAt }, source, history, settings, clock, events)
 
     private fun minute(at: String, heartRate: Int? = 70) = ActivityMinute(
         start = Instant.parse(at),
@@ -63,6 +68,17 @@ class SyncHistoryTest {
     }
 
     @Test
+    fun `минуты, записанные на браслете до привязки, не сохраняются`() = runBlocking {
+        source.recorded = listOf(minute("2026-10-09T09:58:00Z"), minute("2026-10-09T10:00:00Z"))
+        pairedAt = Instant.parse("2026-10-09T09:59:30Z")
+
+        val result = syncHistory(isBackground = false)
+
+        assertEquals(SyncResult.Downloaded(minutes = 1), result)
+        assertEquals(listOf(minute("2026-10-09T10:00:00Z")), history.minutes)
+    }
+
+    @Test
     fun `итог синхронизации записывается с источником запуска`() = runBlocking {
         syncHistory(isBackground = true)
 
@@ -71,6 +87,7 @@ class SyncHistoryTest {
         assertEquals(true, last?.isBackground)
         assertEquals(now, last?.at)
         assertEquals(listOf(true), connection.sessions)
+        assertEquals(1, events.completed)
     }
 
     @Test
@@ -82,6 +99,7 @@ class SyncHistoryTest {
         assertTrue(result is SyncResult.Failed)
         assertTrue(settings.lastSync.value?.summary.orEmpty().startsWith("ошибка: "))
         assertTrue(history.minutes.isEmpty())
+        assertEquals(1, events.completed)
     }
 
     @Test
@@ -89,11 +107,36 @@ class SyncHistoryTest {
         val hangingConnection = object : BandConnection by connection {
             override suspend fun <T> withSession(isBackground: Boolean, block: suspend () -> T): T = awaitCancellation()
         }
-        val sync = SyncHistory(hangingConnection, source, history, settings, clock)
+        val sync = SyncHistory(hangingConnection, { pairedAt }, source, history, settings, clock, events)
 
         val result = sync(isBackground = true, timeout = 10.milliseconds)
 
         assertTrue(result is SyncResult.Failed)
         assertTrue(settings.lastSync.value?.summary.orEmpty().startsWith("ошибка: синхронизация не уложилась"))
+        assertEquals(1, events.completed)
+    }
+
+    @Test
+    fun `неподтверждённая история не открывает фон и не продвигает последнюю минуту`() = runBlocking {
+        val existing = minute("2026-10-09T10:00:00Z")
+        history.save(listOf(existing))
+        val unavailable = object : ru.kardiomonitor.features.monitoring.domain.ActivitySource by source {
+            override val monitoringUnavailableReason: String = "Band 9: история не подтверждена"
+        }
+        val sync = SyncHistory(connection, { pairedAt }, unavailable, history, settings, clock, events)
+
+        val result = sync(isBackground = true)
+
+        assertTrue(result is SyncResult.Failed)
+        assertEquals(listOf(existing), history.minutes)
+        assertTrue(connection.sessions.isEmpty())
+        assertTrue(source.requestedStarts.isEmpty())
+        assertTrue(settings.lastSync.value?.summary.orEmpty().contains("не подтверждена"))
+    }
+
+    private class RecordingHistorySyncEvents : HistorySyncEvents {
+        override val attemptsCompleted: Flow<Unit> = emptyFlow()
+        var completed = 0
+        override fun publishAttemptCompleted() { completed += 1 }
     }
 }

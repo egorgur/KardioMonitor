@@ -1,5 +1,6 @@
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { type PatientOverview, api } from "./api";
+import { LiveHeartRateRequestControl } from "./LiveHeartRateRequest";
 import { HEART_RATE_DOMAIN, formatAgo, formatClock, isFresh } from "./time";
 import { useChartColors } from "./useChartColors";
 import { usePolling } from "./usePolling";
@@ -8,7 +9,7 @@ const LIVE_POLL_MS = 2000;
 const WINDOW_SECONDS = 300;
 
 /** «Пульс сейчас»: крупное значение и график последних 5 минут; обновляется каждые 2 с. */
-export function LiveHeartRate({ patient }: { patient: PatientOverview }) {
+export function LiveHeartRate({ patient, onSignedOut }: { patient: PatientOverview; onSignedOut: () => void }) {
   const live = usePolling(() => api.liveHeartRate(patient.patient_id, WINDOW_SECONDS), LIVE_POLL_MS, [patient.patient_id]);
   const colors = useChartColors();
   const readings = live.data?.readings ?? [];
@@ -60,6 +61,7 @@ export function LiveHeartRate({ patient }: { patient: PatientOverview }) {
           </ResponsiveContainer>
         )}
       </div>
+      <LiveHeartRateRequestControl patient={patient} onSignedOut={onSignedOut} />
     </article>
   );
 }

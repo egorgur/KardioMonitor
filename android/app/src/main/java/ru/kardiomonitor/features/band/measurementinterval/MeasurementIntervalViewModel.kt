@@ -11,6 +11,7 @@ import ru.kardiomonitor.features.band.api.ConnectionState
 import ru.kardiomonitor.features.band.domain.Band
 import ru.kardiomonitor.features.band.domain.BandRepository
 import ru.kardiomonitor.features.band.domain.HeartRateMeasurementInterval
+import ru.kardiomonitor.features.band.domain.ReportedHeartRateSettings
 
 /** Вариант частоты в интерфейсе. */
 internal data class IntervalChoice(val interval: HeartRateMeasurementInterval, val label: String, val isSelected: Boolean)
@@ -32,16 +33,39 @@ internal class MeasurementIntervalViewModel(
     /** Выбор сохраняется сразу; в браслет его записывает сеанс связи — сейчас или при подключении. */
     fun select(interval: HeartRateMeasurementInterval) {
         val band = repository.band.value ?: return
+        if (!band.credentials.protocol.canWriteMeasurementInterval) return
         repository.save(band.withHeartRateMeasurementInterval(interval))
     }
 
     private fun toUiState(band: Band?, connection: ConnectionState): MeasurementIntervalUiState {
+        if (band?.credentials?.protocol?.canWriteMeasurementInterval == false) {
+            return MeasurementIntervalUiState(
+                hint = "Band 9: только чтение. Запись интервала не проверена и отключена.",
+                status = if (connection.isConnected) reportedSettingsText(connection.reportedHeartRateSettings)
+                    else "Подключитесь, чтобы прочитать настройку браслета.",
+            )
+        }
         val selected = band?.heartRateMeasurementInterval
         return MeasurementIntervalUiState(
             choices = HeartRateMeasurementInterval.CHOICES.map { IntervalChoice(it, label(it), it == selected) },
             hint = hint(selected),
             status = status(selected, connection),
         )
+    }
+
+    private fun reportedSettingsText(settings: ReportedHeartRateSettings?): String {
+        if (settings == null) return "Браслет не сообщил настройку."
+        val enabled = when (settings.disabled) {
+            true -> "выключено"
+            false -> "включено"
+            null -> "неизвестно"
+        }
+        val interval = when (settings.intervalMinutes) {
+            null -> "неизвестен"
+            0 -> "Smart (не «Выкл»)"
+            else -> "${settings.intervalMinutes} мин"
+        }
+        return "Автоизмерение: $enabled. Интервал: $interval."
     }
 
     private fun label(interval: HeartRateMeasurementInterval): String = when (interval) {

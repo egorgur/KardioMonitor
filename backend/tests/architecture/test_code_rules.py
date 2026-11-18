@@ -13,6 +13,7 @@ TESTS = sorted((BACKEND / "tests").rglob("*.py"))
 FEATURE_TESTS = sorted((BACKEND / "tests" / "features").rglob("test_*.py"))
 
 MAX_MODULE_LINES = 300
+MAX_FUNCTION_LINES = 40
 FORBIDDEN_CLASS_SUFFIXES = (
     "Manager", "Helper", "Util", "Utils", "Processor", "Handler", "Service", "Data", "Info", "Item",
 )  # fmt: skip
@@ -32,6 +33,23 @@ def test_модуль_не_длиннее_300_строк() -> None:
     ]
 
     assert not too_long, "модуль ≤ 300 строк (coding-rules.md §3)\n" + "\n".join(too_long)
+
+
+def test_функция_не_длиннее_40_строк() -> None:
+    too_long = [
+        f"{_relative(path)}:{node.lineno}: {node.name} — {length} строк, выделите шаги"
+        for path in SOURCES
+        for node in ast.walk(ast.parse(path.read_text()))
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
+        and (length := _function_lines(node)) > MAX_FUNCTION_LINES
+    ]
+
+    assert not too_long, "функция ≤ 40 строк от def до конца тела (§3)\n" + "\n".join(too_long)
+
+
+def _function_lines(node: ast.FunctionDef | ast.AsyncFunctionDef) -> int:
+    end = node.end_lineno if node.end_lineno is not None else node.lineno
+    return end - node.lineno + 1
 
 
 def test_нет_модулей_с_пустыми_именами() -> None:

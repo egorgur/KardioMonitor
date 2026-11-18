@@ -38,8 +38,8 @@ async def receive_activity_minutes(
 ```
 
 - Сценарий — обычная функция с зависимостями-аргументами, без dishka и FastAPI.
-- FastAPI `Depends` остаётся для HTTP-деталей: схема `HTTPBearer` для OpenAPI, проверка
-  заголовка `X-Dashboard-Key` (функция с `@inject`).
+- FastAPI `Depends` остаётся для HTTP-деталей: схемы безопасности для OpenAPI (`HTTPBearer`
+  телефона, cookie сеанса врача — ADR-0011).
 - Тест подменяет реализации провайдером с `override=True`
   (`create_app(settings, replacing((ActivityHistory, fake)))`, см. testing.md).
 

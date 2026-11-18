@@ -33,16 +33,20 @@ class SqliteActivityHistory(private val database: KardioDatabase) : ActivityHist
         changeEvents.tryEmit(Unit)
     }
 
-    override suspend fun minutesOf(day: LocalDate): List<ActivityMinute> = withDatabase {
-        val zone = ZoneId.systemDefault()
-        val from = day.atStartOfDay(zone).toEpochSecond()
-        val to = day.plusDays(1).atStartOfDay(zone).toEpochSecond()
-        database.readableDatabase.rawQuery(
-            "SELECT ts, hr, steps, kind, intensity FROM $ACTIVITY_TABLE WHERE ts >= ? AND ts < ? ORDER BY ts",
-            arrayOf(from.toString(), to.toString()),
-        ).use { cursor ->
-            buildList { while (cursor.moveToNext()) add(cursor.toActivityMinute()) }
-        }
+    override suspend fun minutesOf(day: LocalDate, timeZone: ZoneId): List<ActivityMinute> = withDatabase {
+        val range = day.patientDayRange(timeZone)
+        minutesIn(range.fromEpochSecond, range.toEpochSecond)
+    }
+
+    override suspend fun minutesBetween(
+        firstDay: LocalDate,
+        lastDay: LocalDate,
+        timeZone: ZoneId,
+    ): Map<LocalDate, List<ActivityMinute>> = withDatabase {
+        require(!lastDay.isBefore(firstDay)) { "последний день диапазона раньше первого" }
+        val first = firstDay.patientDayRange(timeZone)
+        val last = lastDay.patientDayRange(timeZone)
+        minutesIn(first.fromEpochSecond, last.toEpochSecond).groupBy { it.start.atZone(timeZone).toLocalDate() }
     }
 
     override suspend fun lastRecordedMinute(): Instant? = withDatabase {
@@ -81,6 +85,12 @@ class SqliteActivityHistory(private val database: KardioDatabase) : ActivityHist
             db.endTransaction()
         }
     }
+
+    private fun minutesIn(from: Long, to: Long): List<ActivityMinute> =
+        database.readableDatabase.rawQuery(
+            "SELECT ts, hr, steps, kind, intensity FROM $ACTIVITY_TABLE WHERE ts >= ? AND ts < ? ORDER BY ts",
+            arrayOf(from.toString(), to.toString()),
+        ).use { cursor -> buildList { while (cursor.moveToNext()) add(cursor.toActivityMinute()) } }
 
     private fun Cursor.toActivityMinute() = ActivityMinute(
         start = Instant.ofEpochSecond(getLong(0)),

@@ -2,11 +2,13 @@
 
 | Документ | Когда читать |
 |---|---|
-| [architecture.md](architecture.md) | Перед любой задачей, которая добавляет или переносит код: VSA + DDD, структура пакетов, правила зависимостей, план миграции |
+| [architecture.md](architecture.md) | Перед любой задачей, которая добавляет или переносит код: VSA + DDD, структура пакетов, правила зависимостей, защитные механизмы |
 | [domain-model.md](domain-model.md) | Когда нужно назвать класс или понять термин: глоссарий, агрегаты, инварианты |
 | [coding-rules.md](coding-rules.md) | При написании кода: имена, размеры, типы, ошибки, корутины, Compose, логирование |
 | [testing.md](testing.md) | При написании тестов и проверке на телефоне |
 | [ble-protocol.md](ble-protocol.md) | При работе с браслетом: UUID, команды, авторизация, формат истории |
+| [qr-contract.md](qr-contract.md) | При изменении QR-кода браслета: формат — контракт между утилитой персонала, `tools/make_qr.py` и приложением пациента |
+| [staff-app/](staff-app/README.md) | Утилита персонала (второе приложение, спецификация): сценарии, архитектура, глоссарий, облако Xiaomi, безопасность |
 | [ai-agent-workflow.md](ai-agent-workflow.md) | Как ставить задачи агенту и как агенту их выполнять; рекомендуемые skills |
 | [adr/](adr/) | Почему сделано именно так. Новое значимое решение — новый ADR по [шаблону](adr/0000-template.md) |
 
@@ -18,6 +20,13 @@
 - [ADR-0004](adr/0004-manual-di.md) — ручное внедрение зависимостей
 - [ADR-0005](adr/0005-architecture-tests-without-library.md) — архитектурные тесты на JUnit без библиотеки
 - [ADR-0006](adr/0006-http-without-library.md) — обмен с сервером: HttpURLConnection и org.json без библиотек
+- [ADR-0007](adr/0007-staff-app-multimodule.md) — утилита персонала в той же сборке, общий модуль протокола
+- [ADR-0008](adr/0008-band-keys-from-xiaomi-cloud.md) — ключи браслетов из облака Xiaomi
+- [ADR-0009](adr/0009-qr-generation-zxing-core.md) — QR-код в утилите: ZXing core
+- [ADR-0010](adr/0010-staff-secrets-in-keystore.md) — секреты утилиты: шифрование ключом Android Keystore
+- [ADR-0011](adr/0011-band-reissue-keeps-key.md) — повторная выдача браслета без смены ключа: синхронизация с момента привязки
+- [ADR-0012](adr/0012-patient-secrets-in-keystore.md) — ключ браслета и токен пациента в Android Keystore
+- [ADR-0013](adr/0013-clinic-live-heart-rate-request.md) — запрос пульса клиникой: CDM и `connectedDevice` foreground Worker
 
 ## Источники правил
 

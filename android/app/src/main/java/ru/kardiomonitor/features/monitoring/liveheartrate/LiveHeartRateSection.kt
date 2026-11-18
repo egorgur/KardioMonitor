@@ -17,22 +17,19 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ru.kardiomonitor.features.band.api.BandConnection
-import ru.kardiomonitor.features.monitoring.domain.ActivitySource
-import ru.kardiomonitor.features.monitoring.domain.LiveHeartRateFeed
 import ru.kardiomonitor.platform.ui.SectionCard
 
 /**
  * Точка входа слайса «Пульс сейчас»: непрерывное измерение по запросу (для тренировок).
- * Видна, пока браслет подключён. Значения публикуются в [LiveHeartRateFeed].
+ * Видна, пока браслет подключён. Значения публикует общий [LiveHeartRateMeasurement].
  */
 @Composable
 fun LiveHeartRateSection(
     connection: BandConnection,
-    source: ActivitySource,
-    feed: LiveHeartRateFeed,
+    measurement: LiveHeartRateMeasurement,
     modifier: Modifier = Modifier,
 ) {
-    val viewModel = viewModel { LiveHeartRateViewModel(connection, source, feed) }
+    val viewModel = viewModel { LiveHeartRateViewModel(connection, measurement) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     if (state.isAvailable) LiveHeartRateContent(state, onToggle = viewModel::toggle, modifier = modifier)
 }
@@ -48,7 +45,12 @@ private fun LiveHeartRateContent(state: LiveHeartRateUiState, onToggle: () -> Un
         if (state.isMeasuring && state.heartRate == null) {
             Text("Измерение… (5–15 с, браслет должен быть на руке)", style = MaterialTheme.typography.bodySmall)
         }
+        if (state.isRequestedByClinic) {
+            Text("Измерение запрошено клиникой. Остановить его можно в постоянном уведомлении.")
+        }
         state.problem?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
-        OutlinedButton(onClick = onToggle) { Text(if (state.isMeasuring) "Остановить" else "Измерять") }
+        OutlinedButton(onClick = onToggle, enabled = !state.isRequestedByClinic) {
+            Text(if (state.isMeasuring) "Остановить" else "Измерять")
+        }
     }
 }

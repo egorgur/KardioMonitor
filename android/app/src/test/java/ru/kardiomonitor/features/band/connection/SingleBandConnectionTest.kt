@@ -13,6 +13,10 @@ import org.junit.Assert.fail
 import org.junit.Test
 import java.io.IOException
 import ru.kardiomonitor.features.band.api.SessionUnavailableException
+import ru.kardiomonitor.features.band.domain.AuthKey
+import ru.kardiomonitor.features.band.domain.Band
+import ru.kardiomonitor.features.band.domain.BandAddress
+import ru.kardiomonitor.features.band.domain.BandCredentials
 import ru.kardiomonitor.features.band.domain.BatteryLevel
 import ru.kardiomonitor.features.band.domain.ConnectionProblem
 import ru.kardiomonitor.features.band.domain.ConnectionStage
@@ -20,6 +24,7 @@ import ru.kardiomonitor.features.band.domain.HeartRateMeasurementInterval
 import ru.kardiomonitor.features.band.fakes.FakeBandLink
 import ru.kardiomonitor.features.band.fakes.FakeBandRepository
 import ru.kardiomonitor.features.band.fakes.FakeBatteryLog
+import java.time.Instant
 
 /** Правила общего сеанса связи — ADR-0003. Корутины выполняются сразу (Unconfined). */
 class SingleBandConnectionTest {
@@ -65,6 +70,35 @@ class SingleBandConnectionTest {
     }
 
     @Test
+    fun `отсутствующий заряд не записывается как ноль и не мешает read-only сеансу`() {
+        val unknownBattery = object : ru.kardiomonitor.features.band.domain.BandLink by link {
+            override suspend fun readBattery(): BatteryLevel? = null
+        }
+        val session = SingleBandConnection(unknownBattery, repository, batteryLog, scope)
+
+        session.connect()
+
+        assertTrue(session.state.value.isConnected)
+        assertEquals(null, session.state.value.battery)
+        assertTrue(batteryLog.records.isEmpty())
+    }
+
+    @Test
+    fun `Smart и отсутствующий disabled сохраняются без превращения в Off`() {
+        val settings = ru.kardiomonitor.features.band.domain.ReportedHeartRateSettings(null, 0)
+        val readOnly = object : ru.kardiomonitor.features.band.domain.BandLink by link {
+            override suspend fun readHeartRateSettings() = settings
+        }
+        val session = SingleBandConnection(readOnly, repository, batteryLog, scope)
+
+        session.connect()
+
+        assertEquals(settings, session.state.value.reportedHeartRateSettings)
+        assertEquals(null, session.state.value.appliedInterval)
+        assertTrue(link.writtenIntervals.isEmpty())
+    }
+
+    @Test
     fun `новая частота пульса при открытом соединении записывается сразу`() = runBlocking {
         connection.connect()
         val band = repository.band.value ?: error("браслет привязан в фейке")
@@ -75,6 +109,19 @@ class SingleBandConnectionTest {
     }
 
     @Test
+    fun `Band 9 не получает сохранённый legacy интервал при подключении и изменении настройки`() {
+        val old = requireNotNull(repository.band.value)
+        val credentials = old.credentials.copy(protocol = ru.kardiomonitor.features.band.domain.BandProtocol.XiaomiBand9Spp)
+        repository.save(Band.restore(credentials, old.pairedAt, HeartRateMeasurementInterval.Off))
+
+        connection.connect()
+        repository.save(Band.restore(credentials, old.pairedAt, HeartRateMeasurementInterval.Every(5)))
+
+        assertTrue(link.writtenIntervals.isEmpty())
+        assertEquals(null, connection.state.value.appliedInterval)
+    }
+
+    @Test
     fun `браслет не найден — подключение по кнопке показывает причину`() {
         link.refusal = ConnectionProblem.NotFound
 
@@ -82,6 +129,22 @@ class SingleBandConnectionTest {
 
         assertEquals(ConnectionProblem.NotFound, connection.state.value.problem)
         assertEquals(ConnectionStage.Disconnected, connection.state.value.stage)
+    }
+
+    @Test
+    fun `ошибка IO при открытии маршрутизируемого сеанса не покидает connect`() {
+        val throwingLink = object : ru.kardiomonitor.features.band.domain.BandLink by link {
+            override suspend fun open(
+                credentials: BandCredentials,
+                onStage: (ConnectionStage) -> Unit,
+            ): ru.kardiomonitor.features.band.domain.OpenResult = throw IOException("подключение отменено")
+        }
+        val session = SingleBandConnection(throwingLink, repository, batteryLog, scope)
+
+        session.connect()
+
+        assertEquals(ConnectionProblem.LinkFailed("подключение отменено"), session.state.value.problem)
+        assertFalse(session.state.value.isConnected)
     }
 
     @Test
@@ -146,5 +209,23 @@ class SingleBandConnectionTest {
 
         assertEquals(ConnectionProblem.LinkFailed("браслет не ответил"), connection.state.value.problem)
         assertFalse(link.isOpen)
+    }
+
+    @Test
+    fun `замена учётных данных закрывает прежний сеанс и подключает новый браслет`() {
+        connection.connect()
+        val replacement = Band.paired(
+            BandCredentials(
+                BandAddress("AA:BB:CC:DD:EE:FF"),
+                AuthKey("ffeeddccbbaa99887766554433221100"),
+            ),
+            Instant.parse("2026-10-29T11:00:00Z"),
+        )
+
+        repository.save(replacement)
+
+        assertEquals(2, link.openCount)
+        assertTrue(link.isOpen)
+        assertEquals(ConnectionStage.Connected, connection.state.value.stage)
     }
 }
